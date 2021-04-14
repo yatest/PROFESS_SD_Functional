@@ -1,10 +1,10 @@
 !
 ! Copyright (C) 2014-2015 Orbital-free DFT group at University of Florida
 !
-! This program is free software; you can redistribute it and/or modify
-! it under the terms of the GNU General Public License as published by
-! the Free Software Foundation; either version 2 of the License, or
-! any later version. See the file LICENSE in the root directory of the
+! This program is free software; you can redistribute it and/or modify 
+! it under the terms of the GNU General Public License as published by 
+! the Free Software Foundation; either version 2 of the License, or 
+! any later version. See the file LICENSE in the root directory of the 
 ! present distribution, or http://www.gnu.org/copyleft/gpl.txt ,
 ! or contact developers via e-mail: vkarasev@qtp.ufl.edu , or paper mail:
 !
@@ -25,6 +25,7 @@ MODULE FS_GGA
 !   MODULE FS_GGA
 !     |_SUBROUTINE TGGAPotentialPlus    (T-dependent GGA (with -TS term included, kinetic=xxxx)
 !     |_FUNCTION TGGAStress             (finite-T TF stress)
+!     |_SUBROUTINE FGGAxxxx             (enhancement factors for many GGA F_s functionals)
 !     |_...
 !     |_SUBROUTINE FGGAyyyy
 !
@@ -33,16 +34,16 @@ MODULE FS_GGA
 ! FUTURE OPTIMIZATIONS AND IMPROVEMENTS:
 !
 ! REFERENCES:
-!
+! 
 !------------------------------------------------------------------------------
 !
 ! DESCRIPTION:
 !   Subroutines below contain implementation of GGA non-interacting free-energy
 !   functionals (energy components, potential and stress)
-!
+!    
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   03/26/2015   Module created by Valentin Karasiev,
+!   03/26/2015   Module created by Valentin Karasiev, 
 !                based on modified PROFESS2m4 and PROFESS2m5
 !
 !------------------------------------------------------------------------------
@@ -116,7 +117,7 @@ REAL(kind=DP) :: &      ! the same variable as in FuntionalPotential.f90
 REAL(kind=DP) :: nu =0._DP ! nu parameter
 REAL(kind=DP) :: nu2=0._DP ! nu2 parameter
 
-REAL(kind=DP), DIMENSION(:,:,:), ALLOCATABLE :: vkin2
+REAL(kind=DP), DIMENSION(:,:,:), ALLOCATABLE :: vkin2             
                    ! d(fs[Rho,|\nabla Rho|])/d(|\nabla RHo|), auxuliary array will be calculated and stored in
                    ! D(F_s)/D( D rho/D r_alpha ) / |\nabla rho| (see QE)
                    ! TPBE2PotentialPlus subroutine and will be used to calculate
@@ -124,10 +125,10 @@ REAL(kind=DP), DIMENSION(:,:,:), ALLOCATABLE :: vkin2
 REAL(kind=DP), DIMENSION(:,:,:), ALLOCATABLE :: vkin3
                    ! d(fs[Rho,Lapl Rho])/d(Lapl Rho), auxuliary array to
                    ! calculate stress of MGGA KE functionals
-REAL(kind=DP) :: etkin, vtkin
-                        ! noninteracting free energy
+REAL(kind=DP) :: etkin, vtkin        
+                        ! noninteracting free energy 
                         ! \int Rho*D(Fs)/(D Rho)d3r used in TPBE2Stress2 not multiplied or devided by cell volume or dV !!!
-LOGICAL :: &
+LOGICAL :: & 
   calcSTRESS = .FALSE.  ! the above array, vkin2, will be calculated or not in TPBE2PotentialPlus
 
 CONTAINS
@@ -135,10 +136,10 @@ CONTAINS
 !------------------------------------------------------------------------------
 SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, energy,TxS,TxS0,negTxS,kinetic)
 !------------------------------------------------------------------------------
-! DESCRIPTION:
+! DESCRIPTION: 
 !   New way to implement GGA free-energy functionals using FGGA(s,dFds2)
 !   function which evaluates GGA enhancement factor and its derivative
-!   corresponding to different functionals.
+!   corresponding to different functionals. 
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
 !
@@ -147,13 +148,13 @@ SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, ener
 ! FUTURE OPTIMIZATIONS AND IMPROVEMENTS:
 !   This thing uses a whole lot of temporary arrays
 !
-! REFERENCES:
+! REFERENCES: 
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
 !   05/o6/2014   Subroutine created (based on TVTPotentialPlus). (Valentin V. Karasiev)
 !   04/23/2015   Subroutine moved in separate module for pr3.0@qe5.1.2
-!
+!            
 !
 !------------------------------------------------------------------------------
 
@@ -162,27 +163,27 @@ SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, ener
                       !>> EXTERNAL VARIABLES <<!
   REAL(kind=DP), DIMENSION(:,:,:), INTENT(IN)  :: rhoReal_SI            ! Electron density in real space, spin INDEPENDENT
   REAL(kind=DP), DIMENSION(:,:,:), INTENT(OUT) :: potential           ! The XC potential
-  LOGICAL,                          INTENT(IN) :: calcEnergy          ! controls calculation of free-energy
+  LOGICAL,                          INTENT(IN) :: calcEnergy          ! controls calculation of free-energy 
   LOGICAL,                          INTENT(IN) :: calcAllTxS          ! controls calculation of TxS, TxS0 and negTxS
   REAL(kind=DP),                   INTENT(OUT) :: energy,TxS,TxS0,negTxS
   INTEGER,                          INTENT(IN) :: kinetic
 
-                     !>> INTERNAL VARIABLES <<!
+                     !>> INTERNAL VARIABLES <<! 
   REAL(kind=DP), parameter :: &
     one = 1._DP,&
     two = 2._DP,&
     threehalf = 1.5_DP,&
     fivehalf = 2.5_DP,&
     fivethird = 5._DP/3._DP,&
-    twothird = 2._DP/3._DP , &
-    onethird = 1._DP/3._DP, &
-    fourthird = 4._DP/3._DP, &
+    twothird = 2._DP/3._DP , & 
+    onethird = 1._DP/3._DP, & 
+    fourthird = 4._DP/3._DP, & 
     seventhird = 7._DP/3._DP,   &
     eightthird = 8._DP/3._DP
 
   REAL(kind=DP) :: coeff,temperHa,ttt
 
-  REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: Ft,dFtds2,tmp0,tmpRho
+  REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: Ft,dFtds2,tmp0,tmpRho 
                                                                                      ! Everything will be done on this tmpRho
   REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: Ftta,dFtds2ta !tmp2ta, tmp0ta
   REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: &
@@ -206,13 +207,13 @@ SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, ener
 
                       !>> INITIALIZATION <<!
     ! If density becomes very small, PBE subroutine will not be stable
-    ! (generate NaN, and Infinity). Therefore we make a hard cutoff here,
+    ! (generate NaN, and Infinity). Therefore we make a hard cutoff here, 
     ! only aims to make this subroutine correcly behave
     ! we use 1e-20 as the bottom line for our density, which will affect
     ! nothing in normal cases.
 
     tmpRho = rhoReal_SI
-    where ( rhoReal_SI < 1.d-20 )
+    where ( rhoReal_SI < 1.d-20 ) 
       tmpRho = 1.d-20
     endwhere
 
@@ -221,8 +222,8 @@ SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, ener
     TxS = 0._DP
     negTxS = 0._DP
     if(calcSTRESS) vkin2 = 0._DP
-
-    ! choose between old FFT and FFT_NEW, the latter one seems do not work in parallel
+  
+    ! choose between old FFT and FFT_NEW, the latter one seems do not work in parallel 
 #ifdef __FFTW2 !--> VVK
     ! old FFT:
     rhoRecip = FFT_2(tmpRho)
@@ -242,13 +243,13 @@ SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, ener
 
     gradMod =sqrt( SUM(gradRho**2,4))
     !gradMod =sqrt(gradRho(:,:,:,1)**2 + gradRho(:,:,:,2)**2 + gradRho(:,:,:,3)**2)
-    where (gradMod<pbeCutoff)
-!    where (rhoReal_SI<pbeCutoff)
+    where (gradMod<pbeCutoff) 
+!    where (rhoReal_SI<pbeCutoff) 
       gradRho(:,:,:,1)=0.d0
       gradRho(:,:,:,2)=0.d0
       gradRho(:,:,:,3)=0.d0
     endwhere
-
+    
 
     !-------------------------------------------------
     ! Compute ...
@@ -258,12 +259,12 @@ SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, ener
     ! temp=T (in eV??)
     ! Energy calculated here is in Hartrees (actually the factor of
     ! volume/number-of-point is missing, see Calculator.f90:
-    !     dV = cellVol/REAL(SIZE(rhoReal_SI),kind=DP)
+    !     dV = cellVol/REAL(SIZE(rhoReal_SI),kind=DP) 
     !     eTable = locETable*dV
     ! Hente the temperature temp=T should be in Hartrees
 
     ! functions of reduced temperature
-      temperHa=temper/11604.5_DP/27.211396132_DP !100 K--> eV--> Hartree
+      temperHa=temper/11604.5_DP/27.211396132_DP !100 K--> eV--> Hartree 
       !c0TF = 3._DP/10._DP*(3._DP*pi**2)**(2._DP/3._DP)
       coeff = 3._DP/10._DP*(3._DP*pi**2)**(2._DP/3._DP)
       !tau0 = coeff*tmpRho**fivethird
@@ -284,16 +285,16 @@ SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, ener
       zeta=-fivethird*tred**2*dfdt
       ksi=-fivethird*(tred*f+tred**2*dfdt)
 
-      dzetadt = -fivethird*two*tred*dfdt-fivethird*tred**2*d2fdt2 ! (dzeta/dt)
+      dzetadt = -fivethird*two*tred*dfdt-fivethird*tred**2*d2fdt2 ! (dzeta/dt) 
       dksidt = -fivethird*(f+tred*dfdt)+dzetadt !(dksi/dt)
 
     ! reduced density gradients
     ! the s^2
-      s2 = (gradRho(:,:,:,1)**2 &
+      s2 = (gradRho(:,:,:,1)**2 & 
           + gradRho(:,:,:,2)**2 &
-          + gradRho(:,:,:,3)**2) /  &
+          + gradRho(:,:,:,3)**2) /  & 
           (4._DP * (3._DP*pi**2)**twothird * tmpRho**eightthird)
-    where ( s2 < 1.d-15 )
+    where ( s2 < 1.d-15 ) 
       s2 = 1.d-15
     endwhere
 ! July 2015 ---------------------------------------------------
@@ -445,16 +446,16 @@ SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, ener
                   &The KE selected is not a GGA. Leaving.")
       STOP
     END SELECT
-
+    
     !
-    potential = potential + &
+    potential = potential + & 
       coeff * fivethird * tmpRho**twothird * zeta * Ft ! c0TF*(5/3)*Rho^(2/3)*zeta*Ft
     !
-    potential = potential + &
-      coeff * tmpRho**fivethird * dzetadt*dtreddn * Ft ! tTF*(d zeta/dn)*Ft
+    potential = potential + & 
+      coeff * tmpRho**fivethird * dzetadt*dtreddn * Ft ! tTF*(d zeta/dn)*Ft 
+    !    
     !
-    !
-    potential = potential + &
+    potential = potential + & 
       coeff * tmpRho**fivethird * zeta * dFtds2 * dstau2dn ! tTF*zeta * dFt/ds2 *ds2/dn
     !
     IF(calcSTRESS) vkin2 = vkin2 + &
@@ -468,20 +469,20 @@ SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, ener
       dFtds2ta = dFtds2 !tmp0
       Ftta = Ft !tmp2
     ENDIF
-    !
+    !   
     ! prepare the dFt(stau2)/dGradRho for later usage
     do i = 1,3
-      exGrad(:,:,:,i) = &
-        coeff * tmpRho**fivethird * zeta *  dFtds2 * &
+      exGrad(:,:,:,i) = & 
+        coeff * tmpRho**fivethird * zeta *  dFtds2 * &  
         gradRho(:,:,:,i)/2._DP/(3._DP*pi**2)**twothird/tmpRho**eightthird & ! d(s2)/d(grad n)
         * (h-dhdt*tred/temperHa)/zeta !stau2/s2   !replace this by 1 to get mcPBE2 !!!!! ! JAN 2012: "+dhdt"--> "-dhdt"
     enddo
     !
-    ! choose between old FFT and FFT_NEW, the latter one seems do not work in parallel
+    ! choose between old FFT and FFT_NEW, the latter one seems do not work in parallel 
 #ifdef __FFTW2 !--> VVK
     ! old FFT:
-    tmp0 = FFT_2( imag*qVectors(:,:,:,1)*FFT_2(exGrad(:,:,:,1)) + &
-                imag*qVectors(:,:,:,2)*FFT_2(exGrad(:,:,:,2)) + &
+    tmp0 = FFT_2( imag*qVectors(:,:,:,1)*FFT_2(exGrad(:,:,:,1)) + & 
+                imag*qVectors(:,:,:,2)*FFT_2(exGrad(:,:,:,2)) + & 
                 imag*qVectors(:,:,:,3)*FFT_2(exGrad(:,:,:,3)) )
 #else
     ! FFT_NEW:
@@ -585,13 +586,13 @@ SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, ener
     Ft = two - Ft
     dFtds2 = - dFtds2
     !
-    potential = potential - &
+    potential = potential - & 
       coeff * fivethird * tmpRho**twothird * ksi * Ft ! c0TF*(5/3)*Rho^(2/3)*ksi*Ft
     !
-    potential = potential - &
-      coeff * tmpRho**fivethird * dksidt*dtreddn * Ft ! tTF*(d ksi/dn)*Ft
-    !
-    potential = potential - &
+    potential = potential - & 
+      coeff * tmpRho**fivethird * dksidt*dtreddn * Ft ! tTF*(d ksi/dn)*Ft 
+    !    
+    potential = potential - & 
       coeff * tmpRho**fivethird * ksi * dFtds2 * dssigma2dn ! tTF*ksi * dFt/ds2 *ds2/dn
     !
     IF(calcSTRESS) vkin2 = vkin2 - &    !<-- NO, it should be "-" !!!!<-- here the sign is "+" (because the "-" is already incorporated in tmp0=dFx/d(s^2)
@@ -614,20 +615,20 @@ SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, ener
       enddo
       enddo
     ENDIF
-    !
+    !    
     ! prepare the dFt(ssigma2)/dGradRho for later usage
     do i = 1,3
-      exGrad(:,:,:,i) = &
-        coeff * tmpRho**fivethird * ksi * dFtds2 * &
+      exGrad(:,:,:,i) = & 
+        coeff * tmpRho**fivethird * ksi * dFtds2 * &  
         gradRho(:,:,:,i)/2._DP/(3._DP*pi**2)**twothird/tmpRho**eightthird & ! d(s2)/d(grad n)
         * (dhdt*tred/temperHa)/ksi ! ssigma2/s2   !replace this by 1 to get mcPBE2 !!!!!
     enddo
     !
-    ! choose between old FFT and FFT_NEW, the latter one seems do not work in parallel
+    ! choose between old FFT and FFT_NEW, the latter one seems do not work in parallel 
 #ifdef __FFTW2 !--> VVK
     ! old FFT:
-    tmp0 = FFT_2( imag*qVectors(:,:,:,1)*FFT_2(exGrad(:,:,:,1)) + &
-                imag*qVectors(:,:,:,2)*FFT_2(exGrad(:,:,:,2)) + &
+    tmp0 = FFT_2( imag*qVectors(:,:,:,1)*FFT_2(exGrad(:,:,:,1)) + & 
+                imag*qVectors(:,:,:,2)*FFT_2(exGrad(:,:,:,2)) + & 
                 imag*qVectors(:,:,:,3)*FFT_2(exGrad(:,:,:,3)) )
 #else
     ! FFT_NEW:
@@ -640,7 +641,7 @@ SUBROUTINE TGGAPotentialPlus(rhoReal_SI, potential, calcEnergy, calcAllTxS, ener
     CALL FFT_NEW(FFT_STD_STATE,trafo1,tmp0)
 #endif         !<-- VVK
     !
-    potential = potential + tmp0
+    potential = potential + tmp0 
     !
     ! Calculate contribution to free energy
     IF (calcEnergy) energy = energy - SUM(tmpRho**(5._DP/3._DP) * coeff *ksi * Ft)
@@ -655,7 +656,7 @@ END SUBROUTINE TGGAPotentialPlus
 FUNCTION TGGAStress(cellVol, rhoReal, rhoReal_SI, rhoRecip_SI,kinetic)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-!   This function calculates the FTGGA=TmcVT and TPBETW stress component
+!   This function calculates the FTGGA=TmcVT and TPBETW stress component 
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
 !
@@ -668,7 +669,7 @@ FUNCTION TGGAStress(cellVol, rhoReal, rhoReal_SI, rhoRecip_SI,kinetic)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   03/23/2012: VVK:
+!   03/23/2012: VVK: 
 !
 !------------------------------------------------------------------------------
 
@@ -678,15 +679,15 @@ FUNCTION TGGAStress(cellVol, rhoReal, rhoReal_SI, rhoRecip_SI,kinetic)
 
                       !>> EXTERNAL VARIABLES <<!
 
-  REAL(kind=DP),                        INTENT(IN) :: cellVol
+  REAL(kind=DP),                        INTENT(IN) :: cellVol               
     ! The volume of the cell
-  REAL(kind=DP),    DIMENSION(:,:,:,:), INTENT(IN) :: rhoReal
+  REAL(kind=DP),    DIMENSION(:,:,:,:), INTENT(IN) :: rhoReal               
     ! Electron density in real space, spin DEPENDENT
-  REAL(kind=DP),    DIMENSION(:,:,:),   INTENT(IN) :: rhoReal_SI
+  REAL(kind=DP),    DIMENSION(:,:,:),   INTENT(IN) :: rhoReal_SI            
     ! Electron density in real space, spin INDEPENDENT
-  COMPLEX(kind=DP), DIMENSION(:,:,:),   INTENT(IN) :: rhoRecip_SI
+  COMPLEX(kind=DP), DIMENSION(:,:,:),   INTENT(IN) :: rhoRecip_SI           
     ! Electron density in real space, spin INDEPENDENT
-  REAL(kind=DP),    DIMENSION(3,3)                 :: TGGAStress
+  REAL(kind=DP),    DIMENSION(3,3)                 :: TGGAStress            
     ! The final answer
   INTEGER, INTENT(IN) :: kinetic
     ! Kinetic energy functional
@@ -698,17 +699,17 @@ FUNCTION TGGAStress(cellVol, rhoReal, rhoReal_SI, rhoRecip_SI,kinetic)
     threehalf = 1.5_DP,&
     fivehalf = 2.5_DP,&
     fivethird = 5._DP/3._DP,&
-    twothird = 2._DP/3._DP , &
-    onethird = 1._DP/3._DP, &
-    fourthird = 4._DP/3._DP, &
+    twothird = 2._DP/3._DP , & 
+    onethird = 1._DP/3._DP, & 
+    fourthird = 4._DP/3._DP, & 
     seventhird = 7._DP/3._DP,   &
     eightthird = 8._DP/3._DP
 
   INTEGER :: i, j   ! The two indices that define the stress component we're looking at.
   REAL(kind=DP),    DIMENSION(3,3)                 :: tmpStress
-  REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: tmpRho
+  REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: tmpRho 
                                                                                      !Everything will be done on this tmpRho
-  REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: tmp3 ! temporary array
+  REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: tmp3 ! temporary array 
   REAL(kind=DP) :: ttt1,ttt2,ttt3,ttt4
   REAL(kind=DP), DIMENSION(SIZE(rhoReal,1), SIZE(rhoReal,2), SIZE(rhoReal,3), 3) :: gradRho
 #ifdef __FFTW2 !--> VVK
@@ -718,7 +719,7 @@ FUNCTION TGGAStress(cellVol, rhoReal, rhoReal_SI, rhoRecip_SI,kinetic)
 
                            !>> INITIALIZATION <<!
     tmpRho = rhoReal_SI
-    where ( rhoReal_SI < 1e-20 )
+    where ( rhoReal_SI < 1e-20 ) 
       tmpRho = 1e-20
     endwhere
 
@@ -781,90 +782,6 @@ END FUNCTION TGGAStress
 !
 !------------------------------------------------------------------------------
 !------------------------------------------------------------------------------
-SUBROUTINE FNLSD(rhoReal_SI)
-  !------------------------------------------------------------------------------
-  ! DESCRIPTION:
-  ! Evaluates Sjostrom and Daligault non-local free-energy functional
-  !
-  ! GLOBAL/MODULE VARIABLES CHANGED:
-  !
-  ! CONDITIONS AND ASSUMPTIONS:
-  !
-  ! FUTURE OPTIMIZATIONS AND IMPROVEMENTS:
-  !
-  ! REFERENCES:
-  !
-  !------------------------------------------------------------------------------
-  ! REVISION LOG:
-  !
-  !------------------------------------------------------------------------------
-  ! ******** INPUT ******************************************************
-  !
-  ! ******** OUTPUT *****************************************************
-  !
-  !------------------------------------------------------------------------------
-  USE SYS, ONLY: rho0
-
-  IMPLICIT NONE
-
-  REAL(KIND=DP) :: tkF, kF, temperHa, X_TF, coeff
-  REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: X_vW, tmpRho, &
-    tred, dtreddn, mu0, tau0, dfdt, dydt, y, f, dfdy, d2fdy2, h, dhdy, d2hdy2, X_0, w, cutf, beta, Imh !Imh = Fermi integral with alpha=-1/2
-  REAL(kind=DP), parameter :: &
-    one = 1._DP,&
-    two = 2._DP,&
-    threehalf = 1.5_DP,&
-    fivehalf = 2.5_DP,&
-    fivethird = 5._DP/3._DP,&
-    twothird = 2._DP/3._DP , &
-    onethird = 1._DP/3._DP, &
-    fourthird = 4._DP/3._DP, &
-    seventhird = 7._DP/3._DP,   &
-    eightthird = 8._DP/3._DP, &
-    a = 5._DP/6._DP, &
-    b = 5._DP/6._DP,
-
-  tmpRho = rhoReal_SI
-  where ( rhoReal_SI < 1.d-20 )
-    tmpRho = 1.d-20
-  endwhere
-
-  temperHa=temper/11604.5_DP/27.211396132_DP !100 K--> eV--> Hartree
-  kF = (3._DP * rho0 * pi**2)**(onethird)
-  tkF = 2._DP*(3._DP * rho0 * pi**2)**(onethird)
-  coeff = 3._DP/10._DP*(3._DP*pi**2)**(twothird)
-  tau0 = coeff*tmpRho**fivethird
-  tred = temperHa/((3._DP*PI**2*tmpRho)**twothird/two) !reduced temp (temper/tempF is el. temperature in a.u.)
-  dtreddn = -twothird*tred/tmpRho ! (dt/dn)
-  y = twothird/tred**threehalf!y=2/3/t_red^(3/2)
-  CALL FPERROT2(Y,F,dFdY,d2FdY2,H,dHdY,d2HdY2)
-  dydt=(-threehalf)*y/tred         ! dy/dt=-3/2 * y/t
-  dfdt=dfdy*dydt
-
-  mu0 = (coeff * fivethird * tmpRho**twothird) * &  ! v_TF0 *
-               (fivethird * tred * f) + &                 ! 5/3 * t * f(t)
-                fivethird * tau0 * dtreddn * &            ! 5/3 * tau_0 * (dt/dn) *
-              (f+tred*dfdt)                               ! (f(t)+t * df(t)/dt)
-
-  Imh = INSERT_ANALYTIC_FERMI_INTEGRAL_FIT_HERE(mu0/temperHa)
-
-  X_TF = -(1._DP/(2._DP*pi*pi))*(2._DP*temperHa)**(1._DP/2._DP)*Imh ! Thomas-Fermi response function
-
-  X_vW = -(4._DP*kF**3._DP)/(3._DP*pi*pi*qTable*qTable) ! von-Weizsacker response function
-
-  eta = qTable/tkF
-  LindF = 1._DP / (0.5_DP + 0.25_DP * (1._DP-eta**2) * LOG((1._DP + eta)/&
-           abs(1._DP-eta))/eta)
-  X_0 = -kF/(pi*pi*LindF)
-
-  cutf = EXP(-(qtable*qtable)/(16*kF*kF))
-  w = cutf*(-1._DP/X_0 + 1._DP/X_TF + 1._DP/X_vW)/(2._DP*a*b*rho0**(a+b-2._DP))
-  beta = (cutf-1._DP)*(-1._DP/X_0 + 1._DP/X_TF + 1._DP/X_vW)/(1._DP/X_vW)
-  
-  return
-END SUBROUTINE FGGAVT84F
-!
-!------------------------------------------------------------------------------
 SUBROUTINE FGGAVT84F(s2,F,dFds2,igga)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
@@ -880,7 +797,7 @@ SUBROUTINE FGGAVT84F(s2,F,dFds2,igga)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   05/06/2014 VVK: Function created
+!   05/06/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -896,11 +813,11 @@ SUBROUTINE FGGAVT84F(s2,F,dFds2,igga)
 
   REAL(kind=DP),  PARAMETER :: &
     one = 1._DP
-
+  
   REAL(kind=DP) :: C1,a1,m,n
   REAL(kind=DP) :: cvw
-
-  if(igga.eq.1) then
+   
+  if(igga.eq.1) then 
     C1 = 2.778_DP
     a1 = C1-5._DP/3._DP+5._DP/27._DP
     cvw = 5._DP/3._DP
@@ -913,7 +830,7 @@ SUBROUTINE FGGAVT84F(s2,F,dFds2,igga)
   endif
 
   m = 8._DP
-  n = 4._DP
+  n = 4._DP  
 
   f = one - C1 * s2 / (one + C1 * s2) * exp(-a1 * s2) + (one - exp(&
      &-a1 * s2 ** (m / 0.4D1))) * (one / s2 ** (n / 0.4D1) - one) + cvw&
@@ -936,7 +853,7 @@ END SUBROUTINE FGGAVT84F
 SUBROUTINE FGGAmuVT84FPBE(s2,F,dFds2) !,igga)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Evaluates mu*VT84F+(1-mu)*APBEK KE enhancement factor and its derivative
+! Evaluates mu*VT84F+(1-mu)*APBEK KE enhancement factor and its derivative 
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
 !
@@ -948,7 +865,7 @@ SUBROUTINE FGGAmuVT84FPBE(s2,F,dFds2) !,igga)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   05/13/2014 VVK: Function created
+!   05/13/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -964,14 +881,14 @@ SUBROUTINE FGGAmuVT84FPBE(s2,F,dFds2) !,igga)
 
   REAL(kind=DP),  PARAMETER :: &
     one = 1._DP
-
+  
   REAL(kind=DP) :: C1,a1,m,n
   REAL(kind=DP) :: C2,a2
   REAL(kind=DP) :: cvw
-
+  
 ! VT84F parameters
     m = 8._DP
-    n = 4._DP
+    n = 4._DP 
     C1 = 2.778_DP
     a1 = C1-5._DP/3._DP+5._DP/27._DP
     cvw = 5._DP/3._DP
@@ -998,7 +915,7 @@ END SUBROUTINE FGGAmuVT84FPBE
 SUBROUTINE FGGAmuKST2PBETW(s2,F,dFds2) !,igga)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Evaluates mu*KST2+(1-mu)*PBETW KE enhancement factor and its derivative
+! Evaluates mu*KST2+(1-mu)*PBETW KE enhancement factor and its derivative 
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
 !
@@ -1010,7 +927,7 @@ SUBROUTINE FGGAmuKST2PBETW(s2,F,dFds2) !,igga)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   05/13/2014 VVK: Function created
+!   05/13/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -1026,10 +943,10 @@ SUBROUTINE FGGAmuKST2PBETW(s2,F,dFds2) !,igga)
 
   REAL(kind=DP),  PARAMETER :: &
     one = 1._DP
-
+  
   REAL(kind=DP) :: C1,a1
   REAL(kind=DP) :: C2,a2
-
+  
 ! KST2 parameters
     C1 = 2.03086874704491870_DP
     a1 = 0.29424417932871265_DP
@@ -1051,7 +968,7 @@ END SUBROUTINE FGGAmuKST2PBETW
 SUBROUTINE FGGAVT84FM(s2,F,dFds2) !,igga)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Evaluates mu*VT84F+(1-mu)*APBEK KE enhancement factor and its derivative
+! Evaluates mu*VT84F+(1-mu)*APBEK KE enhancement factor and its derivative 
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
 !
@@ -1063,7 +980,7 @@ SUBROUTINE FGGAVT84FM(s2,F,dFds2) !,igga)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   05/13/2014 VVK: Function created
+!   05/13/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -1079,13 +996,13 @@ SUBROUTINE FGGAVT84FM(s2,F,dFds2) !,igga)
 
   REAL(kind=DP),  PARAMETER :: &
     one = 1._DP
-
+  
   REAL(kind=DP) :: C1,a1,alpha1,m,n
   REAL(kind=DP) :: cvw
-
+  
 ! VT84FM parameters
     m = 8._DP
-    n = 4._DP
+    n = 4._DP 
     alpha1 = 1.2965d0
     a1 = 2.778d0
 
@@ -1110,7 +1027,7 @@ END SUBROUTINE FGGAVT84FM
 SUBROUTINE FGGAmuKST2(s2,F,dFds2,igga)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Evaluates mu*VT84F+(1-mu)*APBEK KE enhancement factor and its derivative
+! Evaluates mu*VT84F+(1-mu)*APBEK KE enhancement factor and its derivative 
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
 !
@@ -1122,7 +1039,7 @@ SUBROUTINE FGGAmuKST2(s2,F,dFds2,igga)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   05/13/2014 VVK: Function created
+!   05/13/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -1139,34 +1056,34 @@ SUBROUTINE FGGAmuKST2(s2,F,dFds2,igga)
   REAL(kind=DP),  PARAMETER :: &
     one = 1._DP,&
     fivethird = 5._DP/3._DP
-
+  
   REAL(kind=DP) :: C1,a1
-
-  if(igga.eq.1) then
+  
+  if(igga.eq.1) then 
 ! KST2 parameters
     mu = one
     C1 = 2.03086874704491870_DP
     a1 = 0.29424417932871265_DP
-  elseif(igga.eq.2) then
+  elseif(igga.eq.2) then 
 ! PBETWF parameters
     mu = one
     C1 = 0.2319_DP
     a1 = 0.2319_DP/0.8438_DP
-  elseif(igga.eq.3) then
+  elseif(igga.eq.3) then 
 ! APBEF parameters
     mu = one
     C1 = 0.23889_DP
     a1 = 0.23889_DP/0.804_DP
-  elseif(igga.eq.4) then
+  elseif(igga.eq.4) then 
 ! mu*KST2 parameters
     C1 = 2.03086874704491870_DP
     a1 = 0.29424417932871265_DP
-  elseif(igga.eq.5) then
+  elseif(igga.eq.5) then 
 ! TTF+mu*hVW parameters
     C1=fivethird
     a1=0._DP
   endif
-
+   
 
   f = one + mu * C1 * s2 / (one + a1 * s2)
 
@@ -1181,7 +1098,7 @@ END SUBROUTINE FGGAmuKST2
 SUBROUTINE FGGAmuVT84F(s2,F,dFds2) !,igga)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Evaluates mu*VT84F+(1-mu)*APBEK KE enhancement factor and its derivative
+! Evaluates mu*VT84F+(1-mu)*APBEK KE enhancement factor and its derivative 
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
 !
@@ -1193,7 +1110,7 @@ SUBROUTINE FGGAmuVT84F(s2,F,dFds2) !,igga)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   05/13/2014 VVK: Function created
+!   05/13/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -1209,13 +1126,13 @@ SUBROUTINE FGGAmuVT84F(s2,F,dFds2) !,igga)
 
   REAL(kind=DP),  PARAMETER :: &
     one = 1._DP
-
+  
   REAL(kind=DP) :: C1,a1,m,n
   REAL(kind=DP) :: cvw
-
+  
 ! VT84F parameters
     m = 8._DP
-    n = 4._DP
+    n = 4._DP 
     C1 = 2.778_DP
     a1 = C1-5._DP/3._DP+5._DP/27._DP
     cvw = 5._DP/3._DP
@@ -1239,7 +1156,7 @@ END SUBROUTINE FGGAmuVT84F
 SUBROUTINE FGGACmuVT84F(s2,F,dFds2) !,igga)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Evaluates VT84Fmodified KE enhancement factor and its derivative
+! Evaluates VT84Fmodified KE enhancement factor and its derivative 
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
 !
@@ -1251,7 +1168,7 @@ SUBROUTINE FGGACmuVT84F(s2,F,dFds2) !,igga)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   05/13/2014 VVK: Function created
+!   05/13/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -1267,13 +1184,13 @@ SUBROUTINE FGGACmuVT84F(s2,F,dFds2) !,igga)
 
   REAL(kind=DP),  PARAMETER :: &
     one = 1._DP
-
+  
   REAL(kind=DP) :: C1,a1,m,n
   REAL(kind=DP) :: cvw
-
+  
 ! VT84F parameters
     m = 8._DP
-    n = 4._DP
+    n = 4._DP 
     C1 = 2.778_DP
     a1 = C1-5._DP/3._DP+5._DP/27._DP
     cvw = 5._DP/3._DP
@@ -1299,7 +1216,7 @@ END SUBROUTINE FGGACmuVT84F
 SUBROUTINE FGGAPadeB(s2,F,dFds2,igga)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Evaluates PadeB KE enhancement factor and its derivative
+! Evaluates PadeB KE enhancement factor and its derivative 
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
 !
@@ -1311,7 +1228,7 @@ SUBROUTINE FGGAPadeB(s2,F,dFds2,igga)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   12/30/2014 VVK: Function created
+!   12/30/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -1327,7 +1244,7 @@ SUBROUTINE FGGAPadeB(s2,F,dFds2,igga)
 
   REAL(kind=DP),  PARAMETER :: &
     one = 1._DP
-
+  
   REAL(kind=DP) :: prm(30),ap(0:20),bp(0:20)
   REAL(kind=DP), DIMENSION(SIZE(s2,1), SIZE(s2,2), SIZE(s2,3)) :: sum1,sum2,dsum1,dsum2
   INTEGER :: nna,nnb,i
@@ -1366,8 +1283,8 @@ SUBROUTINE FGGAPadeB(s2,F,dFds2,igga)
         nnb = 10
         ap(0) = 1.d0
         bp(0) = 1.d0
-        !ap(1) =
-        !ap(2) =
+        !ap(1) = 
+        !ap(2) = 
         ap(3) = prm(1)
         ap(4) = prm(2)
         ap(5) = prm(3)
@@ -1416,8 +1333,8 @@ SUBROUTINE FGGAPadeB(s2,F,dFds2,igga)
 
         ap(0) = 1.d0
         bp(0) = 1.d0
-        !ap(1) =
-        !ap(2) =
+        !ap(1) = 
+        !ap(2) = 
         ap(3) = prm(1)
         ap(4) = prm(2)
         ap(5) = prm(3)
@@ -1465,7 +1382,7 @@ SUBROUTINE FGGAPadeB(s2,F,dFds2,igga)
     sum2 = sum2 + bp(i)*sqrt(s2)**i
     dsum2 = dsum2 + bp(i)*sqrt(s2)**(i-1)*dble(i)
   enddo
-  f = sum1/sum2
+  f = sum1/sum2  
   dfds2 = (dsum1/sum2 - sum1/sum2**2*dsum2) * 0.5_DP/sqrt(s2) !(d/ds2 = d/ds1 * ds1/ds2)
 
   return
@@ -1474,7 +1391,7 @@ END SUBROUTINE FGGAPadeB
 SUBROUTINE FGGAP92(s2,F,dFds2)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Evaluates Perdew 1992 GGA  KE enhancement factor and its derivative
+! Evaluates Perdew 1992 GGA  KE enhancement factor and its derivative 
 ! Ref.: J.P. Perdew, Phys. Lett. A 165, 79 (1992)
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
@@ -1487,7 +1404,7 @@ SUBROUTINE FGGAP92(s2,F,dFds2)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   05/13/2014 VVK: Function created
+!   05/13/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -1505,9 +1422,9 @@ SUBROUTINE FGGAP92(s2,F,dFds2)
 
   REAL(kind=DP),  PARAMETER :: &
     one = 1._DP
-
+  
   REAL(kind=DP) :: ap2,ap4,bp2
-
+  
 ! P92 parameters
     ap2 = 88.3960_DP
     ap4 = 16.3683_DP
@@ -1518,8 +1435,8 @@ SUBROUTINE FGGAP92(s2,F,dFds2)
 
     den = one+bp2*s2
     dden = bp2
-
-    f = nom/den
+  
+    f = nom/den    
 
     dfds2 = dnom/den - nom*dden/den**2
 
@@ -1529,7 +1446,7 @@ END SUBROUTINE FGGAP92
 SUBROUTINE FGGAE00(s2,F,dFds2)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Evaluates Ernzerhof 2000 GGA  KE enhancement factor and its derivative
+! Evaluates Ernzerhof 2000 GGA  KE enhancement factor and its derivative 
 ! Ref.: M. Ernzerhof / Journal of Molecular Structure (Theochem) 501–502 (2000) 59–64
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
@@ -1542,7 +1459,7 @@ SUBROUTINE FGGAE00(s2,F,dFds2)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   05/13/2014 VVK: Function created
+!   05/13/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -1560,9 +1477,9 @@ SUBROUTINE FGGAE00(s2,F,dFds2)
 
   REAL(kind=DP),  PARAMETER :: &
     f135 = 135._DP
-
+  
   REAL(kind=DP) :: ap2,ap4,bp2
-
+  
 ! P92 parameters
     ap2 = 28._DP
     ap4 = 5._DP
@@ -1573,8 +1490,8 @@ SUBROUTINE FGGAE00(s2,F,dFds2)
 
     den = f135+bp2*s2
     dden = bp2
-
-    f = nom/den
+  
+    f = nom/den    
 
     dfds2 = dnom/den - nom*dden/den**2
 
@@ -1584,7 +1501,7 @@ END SUBROUTINE FGGAE00
 SUBROUTINE FGGAPBE2(s2,F,dFds2)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Evaluates PBE2=KST GGA  KE enhancement factor and its derivative
+! Evaluates PBE2=KST GGA  KE enhancement factor and its derivative 
 ! Ref.: Karasiev, Trickey, Karris, Journal of Computer-Aided Materials Design (2006) 13:111–129
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
@@ -1597,7 +1514,7 @@ SUBROUTINE FGGAPBE2(s2,F,dFds2)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   05/13/2014 VVK: Function created
+!   05/13/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -1615,9 +1532,9 @@ SUBROUTINE FGGAPBE2(s2,F,dFds2)
 
   REAL(kind=DP),  PARAMETER :: &
     one = 1._DP
-
+  
   REAL(kind=DP) :: ap2,bp2
-
+  
 ! P92 parameters
     ap2 = 2.0309_DP
     bp2 = 0.2942_DP
@@ -1627,8 +1544,8 @@ SUBROUTINE FGGAPBE2(s2,F,dFds2)
 
     den = one+bp2*s2
     dden = bp2
-
-    f = one + nom/den
+  
+    f = one + nom/den    
 
     !dfds2 = dnom/den - nom*dden/den**2
     dfds2 = dnom/den**2
@@ -1639,7 +1556,7 @@ END SUBROUTINE FGGAPBE2
 SUBROUTINE FGGAPade(s2,F,dFds2,igga)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Evaluates P0604A KE enhancement factor and its derivative
+! Evaluates P0604A KE enhancement factor and its derivative 
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
 !
@@ -1651,7 +1568,7 @@ SUBROUTINE FGGAPade(s2,F,dFds2,igga)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   12/30/2014 VVK: Function created
+!   12/30/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -1667,7 +1584,7 @@ SUBROUTINE FGGAPade(s2,F,dFds2,igga)
 
   REAL(kind=DP),  PARAMETER :: &
     one = 1._DP
-
+  
   REAL(kind=DP), SAVE :: ap(0:20),bp(0:20)
   REAL(kind=DP), DIMENSION(SIZE(s2,1), SIZE(s2,2), SIZE(s2,3)) :: sum1,sum2,dsum1,dsum2
   INTEGER, SAVE :: nna,nnb
@@ -1704,11 +1621,11 @@ SUBROUTINE FGGAPade(s2,F,dFds2,igga)
 ! small-s: Ft=1+5/27*s^2+8/243*s^4+..
 ! large-s: Ft=5/3*s^2+Cinf+O(1/s^2)+...
 ! where Cinf=(8/243+b4-40/27*b2)/b4
-! if we fix Cinf at some value,
-! then b4 will take a value:
+! if we fix Cinf at some value, 
+! then b4 will take a value: 
 ! b4=(-8/243)*(-1+45*b2)/(-1+Cinf)=(-1/27)*(-27*8/243-40*b2)/(-1+Cinf)
 ! it happen that changes in b2 modify Ft only at very-very large s (s~10000 or
-! so). It means choosing Cinf one obtain effectively one-parameter functional.
+! so). It means choosing Cinf one obtain effectively one-parameter functional.  
 ! see: /home/vkarasev/boa/Maple/Tkin-GGA-E00-Pade0604-tunable.mw
         nna = 6
         nnb = 4
@@ -1755,7 +1672,7 @@ SUBROUTINE FGGAPade(s2,F,dFds2,igga)
     elseif(igga.eq.4) then ! MUP64D
 ! see /home/vkarasev/boa/Maple/Tkin-GGA-Pade0604D-tunable.mw !actually not there
 ! same as MUP64B, but 8/243*s^4 at small-s is replaced by Csml*s^4
-! three parameters:
+! three parameters: 
 ! bp(2) = mu
 ! bp(4) = lambda
 ! ap(4) = nu
@@ -1772,7 +1689,7 @@ SUBROUTINE FGGAPade(s2,F,dFds2,igga)
         ap(0) = one
         bp(0) = one
 !
-        bp(2) = mu
+        bp(2) = mu 
         bp(4) = lambda !(40._DP/27._DP)*bp(2)-(8._DP/243._DP)*ap(0)
 
         ap(2) = 5._DP/27._DP*ap(0)+bp(2)
@@ -1784,7 +1701,7 @@ SUBROUTINE FGGAPade(s2,F,dFds2,igga)
 ! set up script as follows:
 ! choose 3 numbers
 ! mu=zzz (=b2)
-! Csml=nu=xxx
+! Csml=nu=xxx 
 ! Cinf=yyy
 ! and setup the following two lines in the script to define parameter lambda (=b4)
 ! Csml=nu
@@ -1798,11 +1715,11 @@ SUBROUTINE FGGAPade(s2,F,dFds2,igga)
 !
 ! large-s: Ft=5/3*s^2+Cinf+O(1/s^2)+...
 ! where Cinf=(Csml+b4-40/27*b2)/b4
-! if we fix Cinf at some value,
+! if we fix Cinf at some value, 
 ! then b4 will take a value:
 ! b4=(-1/27)*(-27*Csml-40*b2)/(-1+Cinf)
 ! it happen that changes in b2 modify Ft only at very-very large s (s~10000 or
-! so). It means choosing Cinf one obtain effectively one-parameter functional.
+! so). It means choosing Cinf one obtain effectively one-parameter functional.  
 ! see: /home/vkarasev/boa/Maple/Tkin-GGA-E00-Pade0604-tunable.mw
         nna = 6
         nnb = 4
@@ -1817,7 +1734,7 @@ SUBROUTINE FGGAPade(s2,F,dFds2,igga)
         bp(4) = lambda !(40._DP/27._DP)*bp(2)-(8._DP/243._DP)*ap(0)
 
         ap(2) = 5._DP/27._DP*ap(0)+bp(2)
-        ap(4) = (nu)*ap(0)+bp(4)+(5._DP/27._DP)*bp(2) !(8._DP/243._DP)*ap(0)+bp(4)+(5._DP/27._DP)*bp(2)
+        ap(4) = (nu)*ap(0)+bp(4)+(5._DP/27._DP)*bp(2) !(8._DP/243._DP)*ap(0)+bp(4)+(5._DP/27._DP)*bp(2) 
                                                       !controls small-s s^4 coefficient
         ap(6) = (5._DP/3._DP)*bp(4)
     elseif(igga.eq.6) then ! MUP42A
@@ -1844,7 +1761,7 @@ SUBROUTINE FGGAPade(s2,F,dFds2,igga)
     elseif(igga.eq.7) then ! MUP64G
 ! see /home/vkarasev/boa/Maple/Tkin-GGA-Pade0604D-tunable.mw !actually not there
 ! same as MUP64D, but a5 is added
-! four parameters:
+! four parameters: 
 ! bp(2) = mu
 ! bp(4) = lambda
 ! ap(4) = nu
@@ -1859,24 +1776,24 @@ SUBROUTINE FGGAPade(s2,F,dFds2,igga)
         ap(0) = one
         bp(0) = one
 !
-        bp(2) = mu
+        bp(2) = mu 
         bp(4) = lambda !(40._DP/27._DP)*bp(2)-(8._DP/243._DP)*ap(0)
 
         ap(2) = 5._DP/27._DP*ap(0)+bp(2)
         ap(4) = nu !controls small-s s^4 coefficient
         ap(5) = nu2!controls large-s s^1 coefficient
         ap(6) = (5._DP/3._DP)*bp(4)
-    elseif(igga.eq.8) then ! MUP64H 3 par (based on MUP64B, large-s is (nu/b4)*s^2, not 5/3*s^2
+    elseif(igga.eq.8) then ! MUP64H 3 par (based on MUP64B, large-s is (nu/b4)*s^2, not 5/3*s^2 
 ! two parameter: b(2)=mu
 !                b(4)=lambda
 ! small-s: Ft=1+5/27*s^2+8/243*s^4+..
 ! large-s: Ft=nu/b4*s^2+Cinf+O(1/s^2)+...
 ! where Cinf=(8/243+b4-40/27*b2)/b4
-! if we fix Cinf at some value,
-! then b4 will take a value:
+! if we fix Cinf at some value, 
+! then b4 will take a value: 
 ! b4=(-8/243)*(-1+45*b2)/(-1+Cinf)=(-1/27)*(-27*8/243-40*b2)/(-1+Cinf)
 ! it happen that changes in b2 modify Ft only at very-very large s (s~10000 or
-! so). It means choosing Cinf one obtain effectively one-parameter functional.
+! so). It means choosing Cinf one obtain effectively one-parameter functional.  
 ! see: /home/vkarasev/boa/Maple/Tkin-GGA-E00-Pade0604-tunable.mw
         nna = 6
         nnb = 4
@@ -1914,17 +1831,17 @@ SUBROUTINE FGGAPade(s2,F,dFds2,igga)
         ap(2) = 5._DP/27._DP*ap(0)+bp(2)
         ap(3) = lambda
         ap(4) = nu !(5._DP/3._DP)*bp(2)
-    elseif(igga.eq.10) then ! MUP64I 4 par (based on MUP64H, large-s is (nu/b4)*s^2, not 5/3*s^2
+    elseif(igga.eq.10) then ! MUP64I 4 par (based on MUP64H, large-s is (nu/b4)*s^2, not 5/3*s^2 
 ! two parameter: b(2)=mu
 !                b(4)=lambda
 ! small-s: Ft=1+5/27*s^2+8/243*s^4+..
 ! large-s: Ft=nu/b4*s^2+Cinf+O(1/s^2)+...
 ! where Cinf=(8/243+b4-40/27*b2)/b4
-! if we fix Cinf at some value,
-! then b4 will take a value:
+! if we fix Cinf at some value, 
+! then b4 will take a value: 
 ! b4=(-8/243)*(-1+45*b2)/(-1+Cinf)=(-1/27)*(-27*8/243-40*b2)/(-1+Cinf)
 ! it happen that changes in b2 modify Ft only at very-very large s (s~10000 or
-! so). It means choosing Cinf one obtain effectively one-parameter functional.
+! so). It means choosing Cinf one obtain effectively one-parameter functional.  
 ! see: /home/vkarasev/boa/Maple/Tkin-GGA-E00-Pade0604-tunable.mw
         nna = 6
         nnb = 4
@@ -1959,7 +1876,7 @@ SUBROUTINE FGGAPade(s2,F,dFds2,igga)
     sum2 = sum2 + bp(i)*sqrt(s2)**i
     dsum2 = dsum2 + bp(i)*sqrt(s2)**(i-1)*dble(i)
   enddo
-  f = sum1/sum2
+  f = sum1/sum2  
   dfds2 = (dsum1/sum2 - sum1/sum2**2*dsum2) * 0.5_DP/sqrt(s2) !(d/ds2 = d/ds1 * ds1/ds2)
 
   return
@@ -1968,7 +1885,7 @@ END SUBROUTINE FGGAPade
 SUBROUTINE FGGAPade2p(s2,F,dFds2,igga)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Evaluates Pade-2parA enhancement factor and its derivative
+! Evaluates Pade-2parA enhancement factor and its derivative 
 !
 ! GLOBAL/MODULE VARIABLES CHANGED:
 !
@@ -1980,7 +1897,7 @@ SUBROUTINE FGGAPade2p(s2,F,dFds2,igga)
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!   05/13/2014 VVK: Function created
+!   05/13/2014 VVK: Function created 
 !
 !------------------------------------------------------------------------------
 ! ******** INPUT ******************************************************
@@ -2007,8 +1924,8 @@ SUBROUTINE FGGAPade2p(s2,F,dFds2,igga)
     f = one + mu*s2/(one + lambda*s2**2)
     dfds2 = mu/(one + lambda*s2**2) - mu*s2/(one + lambda*s2**2)**2*lambda*2._DP*s2
   endif
-
-
+    
+  
   !f = one + mu*s2/(one + lambda*s2**nnn)
   !dfds2 = mu/(one + lambda*s2**nnn) - mu*s2/(one + lambda*s2**nnn)**2*lambda*dble(nnn)*s2**(nnn-1)
 
