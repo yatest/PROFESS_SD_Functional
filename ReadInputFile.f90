@@ -7,8 +7,8 @@ MODULE ReadInputFile
 !
 ! DESCRIPTION:
 !   Reads the input file (specifically the .inpt file) from the outside world,
-!   and sets all the options, arrays, etc. that are specified to make this 
-!   program run! 
+!   and sets all the options, arrays, etc. that are specified to make this
+!   program run!
 !
 ! CONDITIONS AND ASSUMPTIONS:
 !
@@ -44,7 +44,7 @@ MODULE ReadInputFile
   USE CellInfo, ONLY : cell ! The cell, contains lattice vectors and ions.
   USE CellInfo, ONLY: kinetic ! The kinetic energy functionals used
   USE CellInfo, ONLY: usingGridPack
-  USE CellInfo, ONLY: numSpin ! Number of spins in calculation (1 or 2) 
+  USE CellInfo, ONLY: numSpin ! Number of spins in calculation (1 or 2)
   USE Sys, ONLY: magmom  ! Magnetic moment
   USE Sys, ONLY: rho0
   USE Sys, ONLY: rhoS
@@ -54,7 +54,7 @@ MODULE ReadInputFile
   USE Sys, ONLY: gridSpacing
 
   USE PlaneWave, ONLY: energyCutoff ! The kinetic energy cutoff
-  USE SetupFFT, ONLY: dimType  ! Specifies how to calculate the grid size  
+  USE SetupFFT, ONLY: dimType  ! Specifies how to calculate the grid size
 
   USE Ewald, ONLY: errorTolerance ! The error tolerance for the Ewald
   USE Ewald, ONLY: maxRealCutoff ! The maximum real space cutoff for Ewald
@@ -67,7 +67,7 @@ MODULE ReadInputFile
   USE NearestDistance, ONLY: checkNNdist_bin ! True: space is binned to treat more
   USE RefreshIons, ONLY: trashPreviousRho
 
-  USE CBSpline, ONLY: splineOrder    
+  USE CBSpline, ONLY: splineOrder
 
   USE KEDF_TF, ONLY: lambda
   USE KEDF_VW, ONLY: mu
@@ -84,10 +84,10 @@ MODULE ReadInputFile
   USE KEDF_WGC, ONLY : rhoV, rhoStep            ! set the rhoV and rhoStep used for WGV
 
   USE KEDF_CAT, ONLY: cat_alpha    ! parameters for CAT KEDF
-  USE KEDF_CAT, ONLY: cat_beta     ! parameters for CAT KEDF 
+  USE KEDF_CAT, ONLY: cat_beta     ! parameters for CAT KEDF
   USE KEDF_CAT, ONLY: cat_gamma    ! parameters for CAT KEDF
 
-  USE KEDF_HC10, ONLY: refRatio      ! ratio for interpolating kernels 
+  USE KEDF_HC10, ONLY: refRatio      ! ratio for interpolating kernels
   USE KEDF_HC10, ONLY: hc_lambda_val ! the value that hc_lambda array will take
   USE KEDF_HC10, ONLY: cutrho        ! for rho smaller than cutrho, set it to zero
 
@@ -124,7 +124,7 @@ MODULE ReadInputFile
   USE RhoOptimizers, ONLY: tole
   USE RhoOptimizers, ONLY: usePreconditioner
   USE RhoOptimizers, ONLY: cheatPot
-  USE RhoOptimizers, ONLY: fixedmag 
+  USE RhoOptimizers, ONLY: fixedmag
 
   USE RhoDirCG, ONLY: cg_alg
   USE RhoDirBFGS, ONLY : MBFGS ! parameter for lbfgs method
@@ -143,29 +143,29 @@ MODULE ReadInputFile
   USE MolecularDynamics, ONLY: temperature
   USE MolecularDynamics, ONLY: timeTot
   USE MolecularDynamics, ONLY: dt
-  USE MolecularDynamics, ONLY: tau_thermo 
+  USE MolecularDynamics, ONLY: tau_thermo
   USE MolecularDynamics, ONLY: tau_baro
   USE MolecularDynamics, ONLY: Qmass         ! thermostat's mass
   USE MolecularDynamics, ONLY: dump_md_freq  ! how frequent to dump MD information,
-  USE MolecularDynamics, ONLY: msd_startTime 
+  USE MolecularDynamics, ONLY: msd_startTime
   USE MolecularDynamics, ONLY: rstMD         ! whether or not to restart MD calculation
   USE MolecularDynamics, ONLY: velRescale    ! whether to rescale the initial velocities
   USE MolecularDynamics, ONLY: fixTemperature
   USE MolecularDynamics, ONLY: doMSDAtom     ! whether print out MSD for each atom
 
   USE NPT, ONLY : constr_type ! how to constrain box during NPT
-  USE NPT, ONLY : extPres     ! external pressure 
+  USE NPT, ONLY : extPres     ! external pressure
   USE NPT, ONLY : bMass       ! barastat's mass
-  
+
 ! These are duplicates of various parameters in the OUTPUT module. The reason
-! we have to have a copy in OUTPUT is that OUTPUT is compiled before 
+! we have to have a copy in OUTPUT is that OUTPUT is compiled before
 ! everything else and so can't references a lot of the modules that these
 ! reside in.  Thus, we have a copy specifically for output that is used only
 ! in printing out the parameters.
 
 
   USE OUTPUT, ONLY : &
-  outputFinalForces, & ! Print out forces at the end of the calc in a separatefile 
+  outputFinalForces, & ! Print out forces at the end of the calc in a separatefile
   outputFinalDensity, &    ! Print the final electron density
   outputFinalPotential, &  ! Print the final electronic potential
   outputFinalGeometry, &   ! Print the final coordinates of ions
@@ -205,7 +205,7 @@ MODULE ReadInputFile
   CHARACTER(LEN=systemNameLen + 5) :: &
   inputFile, &       ! The name of the input file
   geometryFile, &    ! The name of the file with the lattice info.
-                     ! Set by SetDefaults, possibly modified by 
+                     ! Set by SetDefaults, possibly modified by
                      ! ReadOptions and used by ReadGeometry.
   densityFile, &     ! The initial electron density file name.
   outputFile, &      ! The output file name.
@@ -214,7 +214,7 @@ MODULE ReadInputFile
 
   ! Private variables
   LOGICAL :: fileDensityFlag = .FALSE. ! Is there a density file? true => yes, false => no.
-  LOGICAL :: fileKernelFlag = .FALSE. !  Is there a kernel file? true => yes, false => no.  
+  LOGICAL :: fileKernelFlag = .FALSE. !  Is there a kernel file? true => yes, false => no.
   LOGICAL :: atomicDensityFlag = .FALSE. ! do we use atomic density? true = > yes, false => no.
 
   INTEGER :: &
@@ -234,7 +234,7 @@ SUBROUTINE ReadOptions
 ! This routine takes the input file, which has the name of the argument on the
 ! command line plus a '.inpt' suffix, and reads it to assign all the options
 ! for the current calculation. Read the manual for the exact use and role of
-! each option. The values set here override those from SetDefaults.  This 
+! each option. The values set here override those from SetDefaults.  This
 ! subroutine also converts things from SI to AU.
 !
 ! CONDITIONS AND ASSUMPTIONS:
@@ -260,13 +260,13 @@ SUBROUTINE ReadOptions
   INTEGER :: fileStatus
   ! Control integer. Checks whether files exist.
   !
-  CHARACTER(LEN=20) :: keyword, option 
+  CHARACTER(LEN=20) :: keyword, option
   ! Character strings to read options.
   !
-  REAL(kind=DP) :: tempReal 
+  REAL(kind=DP) :: tempReal
   ! Actual value of a numerical option.
   !
-  
+
                       !>> INITIALIZATION <<!
 
 
@@ -274,9 +274,9 @@ SUBROUTINE ReadOptions
 
   ! First, open the input file with all the options in it
   OPEN(unit=inputUnit, access="sequential", action="read", blank="null", &
-       delim="none", file=TRIM(inputFile), form="formatted",& 
+       delim="none", file=TRIM(inputFile), form="formatted",&
        iostat=fileStatus, pad="no", position="rewind",  status="old")
-  
+
   IF (fileStatus/=0) THEN
     WRITE(*,*)'The file ', TRIM(inputFile), ' had a problem on opening. filestatue=',fileStatus
     WRITE(*,*)'My uneducated guess: this input file does not exist.'
@@ -291,10 +291,10 @@ SUBROUTINE ReadOptions
     fileStatus = 0
 
     ! Reading first word or eof.
-    READ(inputUnit,*, IOSTAT=fileStatus) keyword 
+    READ(inputUnit,*, IOSTAT=fileStatus) keyword
 
     ! If this is the end of the file, exit
-    IF (fileStatus<0) EXIT 
+    IF (fileStatus<0) EXIT
 
     ! Put the keyword read in all uppercase to compare.
     CALL Uppercase(keyword)
@@ -306,8 +306,8 @@ SUBROUTINE ReadOptions
     SELECT CASE (TRIM(keyword(1:4)))
 
       !-----------------------------------------------------------------------------
-      ! 01) Specifying the plane wave energy cutoff, in eV. 
-      CASE("ECUT") 
+      ! 01) Specifying the plane wave energy cutoff, in eV.
+      CASE("ECUT")
         READ(inputUnit,*, IOSTAT=fileStatus) keyword, energyCutoff
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'Ecut format error. Format is: Ecut [REAL VALUE (eV)]'
@@ -316,7 +316,7 @@ SUBROUTINE ReadOptions
         IF (energyCutoff<=0) THEN
           WRITE(message,*) 'Specified ecut value must be positive: ', energyCutoff
           CALL Error(6, message)
-        END IF 
+        END IF
         WRITE(message,'('' (input) Energy Cutoff                   : '',E10.2, '' eV'')') energyCutoff
         CALL WrtOut(6, message)
         ! Adjust the KE cutoff to appropriate units.
@@ -324,7 +324,7 @@ SUBROUTINE ReadOptions
 
       !-----------------------------------------------------------------------------
       ! 02) Alternatively, we can specify a grid density (in inverse angstroms)
-      CASE("GDEN") 
+      CASE("GDEN")
         READ(inputUnit,*, IOSTAT=fileStatus) keyword, gridSpacing
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'GDEN format error. Format is: GDEN [REAL VALUE]'
@@ -333,20 +333,20 @@ SUBROUTINE ReadOptions
         IF (gridSpacing<=0) THEN
           WRITE(message,*) 'Specified GDEN value must be positive: ', gridSpacing
           CALL Error(6, message)
-        END IF 
-        ! Adjust the grid density to Bohr^-1 
+        END IF
+        ! Adjust the grid density to Bohr^-1
         gridSpacing = gridSpacing * bohr
 
       !-----------------------------------------------------------------------------
       ! 03) Specifying how the dimension should be calculated
-      CASE("DIME") 
+      CASE("DIME")
         READ(inputUnit,*, IOSTAT=fileStatus) keyword, option
         IF (fileStatus/=0) THEN
           WRITE(*,*) 'DIME format error. Format is: DIME [OPTION]'
           STOP
         END IF
         CALL Uppercase(option)
-        SELECT CASE (TRIM(option(1:3))) 
+        SELECT CASE (TRIM(option(1:3)))
         CASE("ALL") ! Both even and odd gridsizes
           dimType = 1
         CASE("EVE") ! Only even gridsizes
@@ -356,13 +356,13 @@ SUBROUTINE ReadOptions
         CASE("TWO") ! Strictly powers of two
           dimType = 4
         CASE DEFAULT
-          WRITE(message,*) 'Warning: Encountered unknown DIME argument ', TRIM(option) 
+          WRITE(message,*) 'Warning: Encountered unknown DIME argument ', TRIM(option)
           CALL Error(6, message)
         END SELECT
 
       !-----------------------------------------------------------------------------
       ! 04) Setting the job as a minimization.
-      CASE("MINI") 
+      CASE("MINI")
         mdType=-1 ! no MD for default
         READ(inputUnit,*, IOSTAT=fileStatus) keyword, option
         IF (fileStatus/=0) THEN
@@ -401,7 +401,7 @@ SUBROUTINE ReadOptions
       !-----------------------------------------------------------------------------
       ! 05) allowed maximal number for each calculations
       CASE("MAXI")
-        READ(inputUnit,*, IOSTAT=fileStatus) keyword, option, tempInt 
+        READ(inputUnit,*, IOSTAT=fileStatus) keyword, option, tempInt
         IF (fileStatus/=0) THEN
           WRITE(*,*) 'MAXI format error. Format is: MAXI [OPTION] [INT]'
           STOP
@@ -411,10 +411,10 @@ SUBROUTINE ReadOptions
         SELECT CASE (TRIM(option(1:3)))
         CASE("DEN","RHO") ! max electronic steps
           maxIter=tempInt
-        CASE("ION", "GEO") ! max ion steps 
-          maxIonStep=tempInt 
-        CASE("CEL", "STR") ! max ion steps 
-          maxCellStep=tempInt 
+        CASE("ION", "GEO") ! max ion steps
+          maxIonStep=tempInt
+        CASE("CEL", "STR") ! max ion steps
+          maxCellStep=tempInt
         CASE("EXT") ! extra electronic optimization steps
           niter_extra=tempInt
         CASE("MAG") ! max magnetic steps
@@ -426,7 +426,7 @@ SUBROUTINE ReadOptions
 
       !-----------------------------------------------------------------------------
       ! 06) specifying the energy minimization method.
-      CASE("METH") 
+      CASE("METH")
         READ(inputUnit,*, IOSTAT=fileStatus) keyword, option
         IF (fileStatus/=0) THEN
           WRITE(*,*) 'METH format error. Format is: METH [OPTION]'
@@ -468,7 +468,7 @@ SUBROUTINE ReadOptions
             rhoMethod = 7
             WRITE(message,*) "(input) Energy Minimization Method      : LOG" !VVK
           !---------------------------------------------------
-          CASE("ION", "GEO", "COO", "FOR") ! Select the ionic relaxation method 
+          CASE("ION", "GEO", "COO", "FOR") ! Select the ionic relaxation method
             IF (rankGlobal==0) outputFinalGeometry = .TRUE.
             BACKSPACE inputUnit
             READ(inputUnit,*, IOSTAT=fileStatus) keyword, option, option
@@ -479,7 +479,7 @@ SUBROUTINE ReadOptions
 
             CALL UPPERCASE(option)
             SELECT CASE (TRIM(option(1:3)))
-              CASE("NON") 
+              CASE("NON")
                 ionMethod = 0
               ! QuickMin
               CASE ("QUI")
@@ -488,10 +488,10 @@ SUBROUTINE ReadOptions
               CASE("CON")
                 ionMethod = 3
               ! Conjugate gradient(Chen Huang's revised)
-              CASE("CG2") 
+              CASE("CG2")
                 ionMethod = 4
               ! BFGS(Steven add this)
-              CASE("BFG") 
+              CASE("BFG")
                 ionMethod = 5
               CASE DEFAULT
                 WRITE(message,*) 'Warning: Encountered unknown METH ION argument ', TRIM(option)
@@ -520,8 +520,8 @@ SUBROUTINE ReadOptions
           END SELECT
 
       !-----------------------------------------------------------------------------
-      ! 07)  select which CG algorithm to use with METH NCG 
-      CASE("DENC")  
+      ! 07)  select which CG algorithm to use with METH NCG
+      CASE("DENC")
         READ(inputUnit,*, IOSTAT=fileStatus) keyword, tempInt
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'DENC format error. Format is: DENC [1 or 2]'
@@ -534,14 +534,14 @@ SUBROUTINE ReadOptions
         CASE (2)
           cg_alg = "HZ"
           CALL WrtOut(6," Hager-Zhang CG algorithm for density optimization")
-        CASE DEFAULT 
+        CASE DEFAULT
           WRITE(message,*) 'Warning: Encountered unknown DENC argument (only 1 or 2)', tempInt
           CALL Error(6, message)
         END SELECT
 
       !-----------------------------------------------------------------------------
-      ! 08) select which CG algorithm to use with METH ION CG2 
-      CASE("IONC") !! the cg_type to be used in 
+      ! 08) select which CG algorithm to use with METH ION CG2
+      CASE("IONC") !! the cg_type to be used in
                    !! nonlinear conjugate gradient ion relaxation (CG2)
         READ(inputUnit,*, IOSTAT=fileStatus) keyword, tempInt
         IF (fileStatus/=0) THEN
@@ -553,39 +553,39 @@ SUBROUTINE ReadOptions
           cg_type = 1
           CALL WrtOut(6," Polak-Ribiere CG algorithm for ionic optimization")
         CASE (2)
-          cg_type = 2 
+          cg_type = 2
           CALL WrtOut(6," Hager-Zhang CG algorithm for ionic optimization")
         CASE (3)
-          cg_type = 3 
+          cg_type = 3
           CALL WrtOut(6," Dai-Yuan CG algorithm for ionic optimization")
-        CASE DEFAULT 
+        CASE DEFAULT
           WRITE(message,*) 'Warning: Encountered unknown IONC argument (only 1, 2 and 3)', tempInt
           CALL Error(6, message)
         END SELECT
 
       !------------------------------------------------------------------------------
       ! the number of storage steps in L-bfgs method
-      CASE("MBFG") 
+      CASE("MBFG")
         READ(inputUnit,*, IOSTAT=fileStatus) keyword, tempInt
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'MBFG format error. Format is: MBFG [INT]'
           CALL Error(6,message)
         END IF
-        MBFGS = tempInt 
+        MBFGS = tempInt
         WRITE(message,*) '(input) M_BFGS (used for BFGS density optimizer) is ', MBFGS
         CALL Wrtout(6,message)
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! calculate force / stress
-      CASE("CALC") 
+      CASE("CALC")
         READ(inputUnit,*) keyword, option
         CALL Uppercase(option)
         SELECT CASE (TRIM(option(1:3)))
         CASE("FOR") ! Calculate the forces.
-          calOption(4) = .TRUE. 
+          calOption(4) = .TRUE.
           IF (rankGlobal==0) outputFinalForces = .TRUE.
         CASE("STR") ! Calculate the stress tensor.
-          calOption(5) = .TRUE. 
+          calOption(5) = .TRUE.
           IF (rankGlobal==0) outputFinalStress = .TRUE.
         CASE DEFAULT
           WRITE(*,*) 'Warning: Encountered unknown CALCULATE argument ',&
@@ -593,7 +593,7 @@ SUBROUTINE ReadOptions
         END SELECT
 
       !-----------------------------------------------------------------------------
-      ! 09) convergence based on energy or potential 
+      ! 09) convergence based on energy or potential
       CASE("CONV")
         READ(inputUnit,*, IOSTAT=fileStatus) keyword, tempInt
         IF (fileStatus/=0) THEN
@@ -602,7 +602,7 @@ SUBROUTINE ReadOptions
         END IF
         SELECT CASE ( tempInt )
         CASE(1)
-          conv_check(1:4) = "ENE " 
+          conv_check(1:4) = "ENE "
         CASE(2)
           conv_check(1:4) = "POT "
         CASE(3)
@@ -618,8 +618,8 @@ SUBROUTINE ReadOptions
         CALL WrtOut(6,message)
 
       !-----------------------------------------------------------------------------
-      ! 10) The stop criteria for total energy convergence in eV. 
-      CASE("TOLE") 
+      ! 10) The stop criteria for total energy convergence in eV.
+      CASE("TOLE")
         READ(inputUnit,*, IOSTAT=fileStatus) keyword, tole
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'TOLE format error. Format is: TOLE [REAL VALUE]'
@@ -628,7 +628,7 @@ SUBROUTINE ReadOptions
         IF (tole<=0) THEN
           WRITE(message,*) 'Specified TOLE value must be positive.'
           CALL Error(6,message)
-        END IF 
+        END IF
         WRITE(message,'('' (input) Tolerence of energy (Ha)        : '',E10.2)') tole
         CALL WrtOut(6,message)
 
@@ -643,7 +643,7 @@ SUBROUTINE ReadOptions
         IF (pot_tol<=0) THEN
           WRITE(message,*) 'Specified TOLP value must be positive.'
           CALL Error(6, message)
-        END IF 
+        END IF
         WRITE(message,'('' (input) Tolerence of Potential          : '',E10.2)') pot_tol
         CALL WrtOut(6,message)
 
@@ -663,8 +663,8 @@ SUBROUTINE ReadOptions
 
       !-----------------------------------------------------------------------------
       ! 13) The stop criteria for force
-      CASE("TOLF") 
-        READ(inputUnit,*, IOSTAT=fileStatus) keyword, forceCutoff 
+      CASE("TOLF")
+        READ(inputUnit,*, IOSTAT=fileStatus) keyword, forceCutoff
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'TOLF format error. Format is: TOLF [REAL VALUE]'
           CALL Error(6, message)
@@ -689,13 +689,13 @@ SUBROUTINE ReadOptions
           WRITE(message,*) 'Specified TOLM value must be positive.'
           CALL Error(6, message)
         ENDIF
-        WRITE(message,'(a,ES12.4,a)') '(input) magnetic tolerence is set to ', tolm 
+        WRITE(message,'(a,ES12.4,a)') '(input) magnetic tolerence is set to ', tolm
         CALL WrtOut(6,message)
 
 
       !-----------------------------------------------------------------------------
       ! 15) Sets timestep for ion minimization
-      CASE("TIME") 
+      CASE("TIME")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, timeStep
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'TIME format error. Format is: TIME [REAL VALUE]'
@@ -703,8 +703,8 @@ SUBROUTINE ReadOptions
         END IF
 
       !-----------------------------------------------------------------------------
-      ! 16) use precondition or not 
-      CASE("PREC") 
+      ! 16) use precondition or not
+      CASE("PREC")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, option
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'PREC format error. Format is: PREC [ON/OFF]'
@@ -728,13 +728,13 @@ SUBROUTINE ReadOptions
       CASE("RHOU")
         READ(inputUnit,*) keyword
         trashPreviousRho=.TRUE.
-        WRITE(message,'(A)') ' (input) Use uniform electron gas for each new geometry.' 
+        WRITE(message,'(A)') ' (input) Use uniform electron gas for each new geometry.'
         CALL WrtOut(6,message)
 
       !-----------------------------------------------------------------------------
       ! 18) Reset electron density to uniform for each ion optimization step
       ! Specifying the number of spin-densities.
-      CASE("SPIN") 
+      CASE("SPIN")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, numSpin
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'Spin format error. Format is: Spin [1 or 2]'
@@ -757,18 +757,18 @@ SUBROUTINE ReadOptions
           WRITE(message,*) 'MAGM format error. Format is: MAGM [REAL VALUE]'
           CALL WrtOut(6,message)
         END IF
-        WRITE(message,'(A,F10.4)') ' (input) Set initial magnetization to be ', magmom  
+        WRITE(message,'(A,F10.4)') ' (input) Set initial magnetization to be ', magmom
         CALL WrtOut(6,message)
 
       !-----------------------------------------------------------------------------
-      ! 20) fix the magnetization or not. 
+      ! 20) fix the magnetization or not.
       CASE("FIXM")
         READ(inputUnit,*) keyword
         fixedmag = .TRUE.
 
       !-----------------------------------------------------------------------------
       ! 21) Specifying the kinetic energy functional to be used.
-      CASE("KINE") 
+      CASE("KINE")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, option
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'KINE format error. Format is: KINE [OPTION]'
@@ -776,7 +776,7 @@ SUBROUTINE ReadOptions
         END IF
         CALL Uppercase(option)
         SELECT CASE (TRIM(option(1:6)))
-        CASE("THO", "TF") ! Thomas-Fermi(TF) functional. 
+        CASE("THO", "TF") ! Thomas-Fermi(TF) functional.
           kinetic = 1
           WRITE(message, *) '(input) TF KEDF to be used.'
         CASE("VON", "VW") ! Von Weiszacker(vW) functional.
@@ -810,7 +810,7 @@ SUBROUTINE ReadOptions
           kinetic = 10
           WRITE(message, *) '(input) CAT KEDF to be used.'
         CASE("CAV")         ! TF + vW + Wang-Govind-Carter functional.
-          kinetic = 10 
+          kinetic = 10
           WRITE(message, *) '(input) CAT + vacuum is activated.'
           bvac = .TRUE.     ! this is the only flag tell PROFESS that we are using CATvac
         CASE("HC")         ! Huang-Carter KEDF (2011) PRB
@@ -874,15 +874,15 @@ SUBROUTINE ReadOptions
               GGA_functional = 18
             End Select
           ENDIF
-        CASE("VW+") ! Density Decomposition using vW+G*TF KEDF 
+        CASE("VW+") ! Density Decomposition using vW+G*TF KEDF
           kinetic = 16
           WRITE(message,*) '(input) Density Decomposition using vW+G*TF KEDF'
         CASE("EVT") ! EvW using WT
           kinetic = 17
-          WRITE(message,*) '(input) EvW KEDF based on WT KEDF' 
+          WRITE(message,*) '(input) EvW KEDF based on WT KEDF'
         CASE("EVC") ! EvW using WGC
           kinetic =18
-          WRITE(message,*) '(input) EvW KEDF based on WGC KEDF' 
+          WRITE(message,*) '(input) EvW KEDF based on WGC KEDF'
 ! --> VVK ADDED: MAR 2015: Temperature dependent non-interacting free-energy functionals
 ! kinetic has the value from PROFESS2m5 + 1000
 ! e.g. TTF kinetic=10+1000=1010
@@ -892,121 +892,126 @@ SUBROUTINE ReadOptions
 
 ! 07 SEP 2015: old GGA functionals:
           CASE("HVWTF","TFMUVW") ! TGGA: TTF+mu*hVW
-            kinetic = 1013 
+            kinetic = 1013
             WRITE(message, *) '(input) Non-interacting Free-Energy     : TTF+mu*hVW'
           CASE("TMC01","KST2") ! TGGA: TMCPBE2=KST2
-            kinetic = 1014 
+            kinetic = 1014
             WRITE(message, *) '(input) Non-interacting Free-Energy     : KST2'
           CASE("TGG01","PBETWF") ! TGGA: TPBETW
-            kinetic = 1015 
+            kinetic = 1015
             WRITE(message, *) '(input) Non-interacting Free-Energy     : PBETWF'
 
           CASE("TAPBE","APBEF") ! APBEK
-            kinetic = 1047 
+            kinetic = 1047
             WRITE(message, *) '(input) Non-interacting Free-Energy     : APBEF'
 
-! 
+!
           CASE("VT84F","VT84FN") ! new implementation of VT84F
             kinetic = 1101
             WRITE(message, *) '(input) Non-interacting Free-Energy     : VT84F'
-          CASE("VT84GN") ! 
+          CASE("VT84GN") !
             kinetic = 1102
             WRITE(message, *) '(input) Non-interacting Free-Energy     : VT84GN'
-          CASE("TVTPBE") ! 
+          CASE("TVTPBE") !
             kinetic = 1103
             WRITE(message, *) '(input) Non-interacting Free-Energy     : TVTPBE'
-          CASE("TWKST2") ! 
+          CASE("TWKST2") !
             kinetic = 1104
             WRITE(message, *) '(input) Non-interacting Free-Energy     : TWKST2'
-          CASE("TVT04M","VT84FM") ! 
+          CASE("TVT04M","VT84FM") !
             kinetic = 1105
             WRITE(message, *) '(input) Non-interacting Free-Energy     : VT84Fm'
-          CASE("MUKST2") ! 
+          CASE("MUKST2") !
             kinetic = 1106
             WRITE(message, *) '(input) Non-interacting Free-Energy     : muKST2'
-          CASE("MUVT84") ! 
+          CASE("MUVT84") !
             kinetic = 1107
             WRITE(message, *) '(input) Non-interacting Free-Energy     : muVT84F'
-          CASE("CMVT84") ! 
+          CASE("CMVT84") !
             kinetic = 1108
             WRITE(message, *) '(input) Non-interacting Free-Energy     : CmuVT84F'
 ! DEC 2014
-          CASE("P0910C") ! 
+          CASE("P0910C") !
             kinetic = 1109
             WRITE(message, *) '(input) Non-interacting Free-Energy     : P0910C'
 ! Feb 2015
-          CASE("P92") ! 
+          CASE("P92") !
             kinetic = 1110
             WRITE(message, *) '(input) Non-interacting Free-Energy     : P92'
-          CASE("E00") ! 
+          CASE("E00") !
             kinetic = 1111
             WRITE(message, *) '(input) Non-interacting Free-Energy     : E00'
           CASE("PBE2") !  same as TMC01 or KST2, but different implementation
             kinetic = 1112
             WRITE(message, *) '(input) Non-interacting Free-Energy     : PBE2'
 ! MAY 2015
-          CASE("MUP64A","P64PR1") ! Pade[04,06] vers. A 
+          CASE("MUP64A","P64PR1") ! Pade[04,06] vers. A
             kinetic = 1113
-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64A" 
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64A"
             !CALL WrtOut(6,message)
           CASE("MUP64B","P64PR2") ! Pade[04,06] vers. B
             kinetic = 1114
-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64B" 
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64B"
             !CALL WrtOut(6,message)
           CASE("MUP64C","P654P3") ! Pade[04,06] vers. C
             kinetic = 1115
-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64C" 
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64C"
             !CALL WrtOut(6,message)
 ! JUNE 2015
           CASE("VT84F1") ! VT84F with C1=mu - tunable parameter
             kinetic = 1116
-            WRITE(message, *) "(input) Non-interacting Free-Energy     : VT84F1" 
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : VT84F1"
             !CALL WrtOut(6,message)
           CASE("MUP64D","P64PR3") ! Pade[04,06] vers. D
             kinetic = 1117
-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64D" 
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64D"
             !CALL WrtOut(6,message)
           CASE("PAD2PA") ! Pade[04,06] vers. D
             kinetic = 1118
-            WRITE(message, *) "(input) Non-interacting Free-Energy     : PAD2PA" 
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : PAD2PA"
             !CALL WrtOut(6,message)
           CASE("PAD2PB") ! Pade[04,06] vers. D
             kinetic = 1119
-            WRITE(message, *) "(input) Non-interacting Free-Energy     : PAD2PB" 
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : PAD2PB"
             !CALL WrtOut(6,message)
           CASE("MUP64F") ! Pade[04,06] vers. D
             kinetic = 1120
-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64F" 
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64F"
             !CALL WrtOut(6,message)
-          CASE("MUP42A","P42PR2") ! Pade[04,06] vers. A 
+          CASE("MUP42A","P42PR2") ! Pade[04,06] vers. A
             kinetic = 1121
-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP42A" 
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP42A"
             !CALL WrtOut(6,message)
           CASE("MUP64G","P64PR4") ! Pade[04,06] vers. D
             kinetic = 1122
-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64G" 
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64G"
             !CALL WrtOut(6,message)
           CASE("MUP64H") ! Pade[04,06] vers. H
             kinetic = 1123
-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64H" 
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64H"
             !CALL WrtOut(6,message)
           CASE("MUP42B") ! Pade[04,02] vers. B
             kinetic = 1124
-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP42B" 
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP42B"
             !CALL WrtOut(6,message)
           CASE("MUP64I") ! Pade[04,06] vers. I
             kinetic = 1125
             WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64I"
             !CALL WrtOut(6,message)
 ! <-- VVK END
+! --> TWY ADDED: APR 2021: Temperature dependent non-local non-interacting free-energy functionals
+          CASE("SDF") ! Sjostrom & Daligault non-local functional
+            kinetic = 1200
+            WRITE(message, *) "(input) Non-interacting Free-Energy     : SDF"
+! <-- TWY END
         CASE DEFAULT
           WRITE(message,*) 'Warning: Encountered unknown KINE argument ', TRIM(option)
-          CALL Error(6,message) 
+          CALL Error(6,message)
         END SELECT
         CALL WrtOut(6,message)
 
       !-----------------------------------------------------------------------------
-      ! 22) Set the kinetic energy functional parameters.     
+      ! 22) Set the kinetic energy functional parameters.
       CASE("PARA")
         READ(inputUnit, *, IOSTAT=fileStatus) keyword, option, tempReal
         IF (fileStatus/=0) THEN
@@ -1052,14 +1057,14 @@ SUBROUTINE ReadOptions
           !------------------------------------------------------------------------------
           CASE("CATA") ! alpha for CAT KEDF
             ! cat_alpha = tempReal
-            WRITE(message,*) '(input) cat_alpha must be zero, because we need the vW KEDF to', & 
+            WRITE(message,*) '(input) cat_alpha must be zero, because we need the vW KEDF to', &
                                ' be the lower bound of the KEDF!'
-            CALL Error(6, message) 
-          CASE("CATB") ! beta for CAT KEDF 
+            CALL Error(6, message)
+          CASE("CATB") ! beta for CAT KEDF
             ! cat_beta = tempReal
             WRITE(message,*) '(input) cat_beta must be 2/3, this is the optimum value'
             CALL Error(6,message)
-          CASE("CATG") ! gamma for CAT KEDF 
+          CASE("CATG") ! gamma for CAT KEDF
             cat_gamma = tempReal
             Write(message,*) '(input) Gamma in CAT is set to be ',cat_gamma
             CALL WrtOut(6,message)
@@ -1090,11 +1095,11 @@ SUBROUTINE ReadOptions
             refRatio = tempReal**(1._DP/3._DP)
             WRITE(message,'(2(a,ES12.4))') ' (input) ratio for interpolating kernels:', tempReal,', refRatio=', refRatio
             CALL WrtOut(6, message)
-          CASE("HCLA") 
+          CASE("HCLA")
             hc_lambda_val = tempReal
             WRITE(message,*) '(input) hc_lambda is going to be set to = ', hc_lambda_val
             CALL Wrtout(6,message)
-          CASE("CUTR") 
+          CASE("CUTR")
             cutrho = tempReal
             WRITE(message,*) '(input) density in HC KEDF smaller than ', cutrho, " wil set to 0"
             CALL Wrtout(6,message)
@@ -1118,7 +1123,7 @@ SUBROUTINE ReadOptions
             scfc = tempReal
             WRITE(message,*) '(input) self-consistency for Fr is set to be ', tempReal
             CALL WrtOut(6, message)
-          CASE("RHOC") ! Steven's KEDF 
+          CASE("RHOC") ! Steven's KEDF
             rhoc = tempReal
             WRITE(message,*) '(input) RHOC is set to be: ', tempReal
           !------------------------------------------------------------------------------
@@ -1137,11 +1142,11 @@ SUBROUTINE ReadOptions
             CALL WrtOut(6, message)
           !------------------------------------------------------------------------------
           ! GGA functionals
-          CASE("CP")   
+          CASE("CP")
             CP = tempReal
             WRITE(message,*) '(input) GGA penalty coeff to be ', tempReal
             CALL WrtOut(6, message)
-          CASE("VWMO")   
+          CASE("VWMO")
             model = NINT(tempReal) ! jmd: unhappy about this change but the whole parser seems rather duct-taped
             WRITE(message,*) '(input) vW+G*TF KEDF uses model ', tempReal
             CALL WrtOut(6, message)
@@ -1151,9 +1156,9 @@ SUBROUTINE ReadOptions
             CALL Error(6, message)
         END SELECT
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 23) orders of WGC
-      CASE("WGCT") 
+      CASE("WGCT")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, WGCT
         WRITE(message,'('' (input) Kinetic Energy Functional       : WGC '',I1)') WGCT
         CALL WrtOut(6, message)
@@ -1168,19 +1173,19 @@ SUBROUTINE ReadOptions
         ELSE IF (WGCT == 2) THEN  ! use all the 2nd order of WGC
           firstOrderWGC = -1
         ELSE IF (WGCT == -3) THEN ! ddw/drho(r)^2 term will be set to zero in FillWGC routine
-          firstOrderWGC = -1 
+          firstOrderWGC = -1
         ELSE IF (WGCT == -4) THEN ! ddW/dRho(r)dRho(r') term will be set to zero in FillWGC routine
           firstOrderWGC = -1
         ELSE IF (WGCT == -5) THEN ! use 2 coefficients for diagonal and non-diagonal terms in the 2nd order WGC
           firstOrderWGC = -1
-        ELSE 
+        ELSE
           CALL WrtOut(6,'WGCT has been assigned undefined value, error, stop')
           STOP
         ENDIF
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 24) the density at which the vacuum cutoff function quickly goes to zero
-      CASE("RHOV") 
+      CASE("RHOV")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, rhoV
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'RHOV format error. Format is: RHOV [REAL VALUE]'
@@ -1189,9 +1194,9 @@ SUBROUTINE ReadOptions
         WRITE(message,*) '(input) rhoV for vacuum is set to ', rhoV
         CALL WrtOut(6, message)
 
-      !-----------------------------------------------------------------------------  
-      ! 25) how fast the vacuum is going to zero 
-      CASE("RHST") 
+      !-----------------------------------------------------------------------------
+      ! 25) how fast the vacuum is going to zero
+      CASE("RHST")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, rhoStep
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'RHST format error. Format is: RHST [REAL VALUE]'
@@ -1200,7 +1205,7 @@ SUBROUTINE ReadOptions
         WRITE(message,*) '(input) rhoStep is set to ', rhoStep
         CALL WrtOut(6, message)
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 26) Hold rho0 or rhoS at their strating values even if the cell reshapes.
       CASE("HOLD")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, option
@@ -1219,9 +1224,9 @@ SUBROUTINE ReadOptions
             CALL Error(6, message)
         END SELECT
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 27) Specifying the exchange-correlation functional.
-      CASE("EXCH") 
+      CASE("EXCH")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, option
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'EXCH format error. Format is: EXCH [LDA or PBE].'
@@ -1257,9 +1262,9 @@ SUBROUTINE ReadOptions
           CALL Error(6, message)
         ENDIF
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 28) Specifying the Ewald parameters.
-      CASE("EWAL") 
+      CASE("EWAL")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, option
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'EWAL format error. Format is: EWAL [OPTION] [REAL VALUE].'
@@ -1277,8 +1282,8 @@ SUBROUTINE ReadOptions
             END IF
             IF (errorTolerance <= 0) THEN
               WRITE(message,*) 'Specified EWAL TOL value must be positive: ',errorTolerance
-              CALL Error(6, message) 
-            END IF 
+              CALL Error(6, message)
+            END IF
             errorTolerance = errorTolerance / hartreeToeV
 
           CASE("MAX") ! Ewald Max Real Cutoff
@@ -1291,7 +1296,7 @@ SUBROUTINE ReadOptions
               WRITE(message,*) 'Specified EWAL MAX value must be positive: ', maxRealCutoff
               CALL Error(6, message)
             END IF
-            maxRealCutoff = maxRealCutoff / bohr 
+            maxRealCutoff = maxRealCutoff / bohr
 
           CASE("ETA") ! Ewald Eta Increment
             READ(inputUnit,*,IOSTAT=fileStatus) keyword, option, etaIncrement
@@ -1302,7 +1307,7 @@ SUBROUTINE ReadOptions
             IF (etaIncrement <= 0) THEN
               WRITE(message,*) 'Specified EWAL ETA value must be positive: ', etaIncrement
               CALL Error(6, message)
-            END IF 
+            END IF
             etaIncrement = etaIncrement * BOHR
 
           CASE("REC") ! Ewald Recip Cutoff Increment
@@ -1322,7 +1327,7 @@ SUBROUTINE ReadOptions
             CALL Error(6, message)
         END SELECT
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 29) Specifying whether to use cardinal b-spline approximations
       CASE ("SPLI")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, option, tempInt
@@ -1356,7 +1361,7 @@ SUBROUTINE ReadOptions
           STOP
         END SELECT
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 30) MD PARAMETER: md output path, mohan add 2013-01-17
       CASE("MDOP")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, option
@@ -1364,9 +1369,9 @@ SUBROUTINE ReadOptions
           WRITE(message,*) 'MDOP format error. Format is: MDOP [PATH].'
           CALL Error(6, message)
         END IF
-        md_output_path = TRIM(option) 
-        
-      !-----------------------------------------------------------------------------  
+        md_output_path = TRIM(option)
+
+      !-----------------------------------------------------------------------------
       ! 31) MD PARAMETER: Flag to restart Molecular Dynamics calculations.
       ! rstMD must be an integer
       ! 1) if rstMD < 0, for example, rstMD = -4, then the MD will restart
@@ -1374,7 +1379,7 @@ SUBROUTINE ReadOptions
       ! you want to get consistent information compared to previous MD
       ! runs.
       ! 2) if rstMD == 0, we restart a new MD.
-      ! 3) if rstMD == 1, restart from MD from files ion.restar and 
+      ! 3) if rstMD == 1, restart from MD from files ion.restar and
       ! vel.restart
       ! 4) if rstMD > 1, error.
       !------------------------------------------------------------------
@@ -1384,14 +1389,14 @@ SUBROUTINE ReadOptions
           WRITE(message,*) 'RSTM format error. Format is: RSTM [INT].'
           CALL Error(6, message)
         END IF
-        IF (rstMD < 0)  THEN 
+        IF (rstMD < 0)  THEN
           CALL WrtOut(6, " (input) Restart MD from selected step.")
         ELSE IF(rstMD == 0) THEN
           CALL WrtOut(6," (input) Restart MD option is not used.")
         ELSE IF(rstMD == 1) THEN
           CALL WrtOut(6," (input) Restart MD from ion.restart and vel.restart")
         ELSE IF(rstMD > 1) THEN
-          WRITE(message,*) 'Specified RSTM value must be <= 1.', rstMD 
+          WRITE(message,*) 'Specified RSTM value must be <= 1.', rstMD
           CALL Error(6, message)
         ENDIF
 
@@ -1419,9 +1424,9 @@ SUBROUTINE ReadOptions
             CALL Error(6, message)
         END SELECT
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 33) MD PARAMETERS: NVT thermostat
-      CASE("NOSE") 
+      CASE("NOSE")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, option, tempReal
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'NOSE format error. Format is: NOSE [OPTION] [REAL VALUE].'
@@ -1437,18 +1442,18 @@ SUBROUTINE ReadOptions
             WRITE(message,'('' (input) Temperature in NVT              : '',F10.2)') tempReal
             temperature = tempReal * BOLTZMANN ! convert to temperature in a.u.
             CALL WrtOut(6, message)
-          CASE("TIME") ! Total time              
+          CASE("TIME") ! Total time
             WRITE(message,'('' (input) Total time in NVT               : '',E10.2)') tempReal
             CALL WrtOut(6, message)
             timeTot = tempReal / fundamentalTime ! convert to time in a.u.
           CASE("DTIM") ! Time interval
             WRITE(message,'('' (input) Time interval in NVT            : '',E10.2)') tempReal
             CALL WrtOut(6, message)
-            dt = tempReal / fundamentalTime   ! convert to time in a.u.              
+            dt = tempReal / fundamentalTime   ! convert to time in a.u.
           CASE("QMAS") ! Q mass (in atomic units, mass * length**2)
-            Qmass = tempReal 
+            Qmass = tempReal
           CASE("NRES") ! integer for nResn
-            nResn = NINT(tempReal) 
+            nResn = NINT(tempReal)
             IF(nResn .GE. 1 ) THEN
               WRITE(message,'('' (input) NRESN         in NVT            : '',I3)') nResn
               CALL WrtOut(6,message)
@@ -1457,7 +1462,7 @@ SUBROUTINE ReadOptions
               CALL Error(6, message)
             ENDIF
           CASE("NYOS") ! integer for nYosh
-            nYosh = NINT(tempReal) 
+            nYosh = NINT(tempReal)
             IF(nYosh==1 .OR. nYosh==3 .OR. nYosh==5) THEN
               WRITE(message,'('' (input) NYOSH         in NVT            : '',I3)') nYosh
               CALL WrtOut(6,message)
@@ -1471,9 +1476,9 @@ SUBROUTINE ReadOptions
         END SELECT
       END IF
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 34) MD PARAMETERS: NPT full cell relaxation
-      CASE("NPTM") 
+      CASE("NPTM")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, option, tempReal
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'NPTM format error. Format is:NPTM [OPTION] [REAL VALUE].'
@@ -1489,9 +1494,9 @@ SUBROUTINE ReadOptions
           CASE("DTIM") ! Time increment, in second
             dt = tempReal / fundamentalTime       ! convert to a.u.
           CASE("QMAS") ! thermostat mass (in atomic units, mass * length**2)
-            Qmass = tempReal 
+            Qmass = tempReal
           CASE("BMAS") ! barostat mass (in atomic units, mass * length**2)
-            bMass = tempReal 
+            bMass = tempReal
           CASE("EXTP") ! exteranl pressure
             extPres = tempReal*auPressure   ! convert from Pa to a.u. pressure
           CASE("NRES") ! integer for nResn
@@ -1501,7 +1506,7 @@ SUBROUTINE ReadOptions
               CALL WrtOut(6,message)
             ELSE
               WRITE(message,*) "NRESN can only be integer larger than 1."
-              CALL Error(6, message) 
+              CALL Error(6, message)
             ENDIF
           CASE("NYOS") ! integer for nYosh
             nYosh = NINT(tempReal)  ! jmd: unhappy about this change but the whole parser seems rather duct-taped
@@ -1523,24 +1528,24 @@ SUBROUTINE ReadOptions
             CALL Error(6, message)
         END SELECT
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 35) MD PARAMETER: rescale the initial read in velocity
       CASE("VELR")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword
         velRescale = .TRUE.
-        WRITE(message,'(A)') ' (input) Rescale the velocities to target temperature when restarting MD.' 
+        WRITE(message,'(A)') ' (input) Rescale the velocities to target temperature when restarting MD.'
         CALL WrtOut(6,message)
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 36) MD PARAMETER: Mean Square Displacements are calculated beyond this
       ! step
       CASE("MSDI")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, tempInt
-        msd_startTime = tempInt 
+        msd_startTime = tempInt
         WRITE(message,'(A,I5)') ' (input) Print out the MSD for each atom after step ', tempInt
         CALL WrtOut(6,message)
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 37) MD PARAMETER: Mean Square Displacements are printed for each atom
       CASE("MSDA")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword
@@ -1548,9 +1553,9 @@ SUBROUTINE ReadOptions
         WRITE(message,'(A)') ' (input) Print out the MSD for each atom during MD.'
         CALL WrtOut(6,message)
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 38) Specifying the name of the geometry file.
-      CASE("GEOM") 
+      CASE("GEOM")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, geometryFile
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'GEOM format error. Format is: GEOM [FILE].'
@@ -1559,9 +1564,9 @@ SUBROUTINE ReadOptions
         WRITE(message,*) '(input) Read in geometry file from      : ',geometryFile  !VVK
         CALL WrtOut(6,message)
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 39) Specifying the name of the output file.
-      CASE("OUTP") 
+      CASE("OUTP")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, outputFile
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'OUTP format error. Format is          : OUTP [FILE].' !VVK
@@ -1570,42 +1575,42 @@ SUBROUTINE ReadOptions
         WRITE(message,*) '(input) Output file is                  : ', outputFile !VVK
         CALL WrtOut(6,message)
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 40) Specifying the name of the error file.
-      CASE("ERRO") 
+      CASE("ERRO")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, errorFile
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'ERRO format error. Format is: ERRO [FILE].'
           CALL Error(6, message)
         ENDIF
-        WRITE(message,*) '(input) Error file is: ', errorFile 
+        WRITE(message,*) '(input) Error file is: ', errorFile
         CALL WrtOut(6,message)
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 41) Specifying the name of the input density file.
-      CASE("RHOF") 
+      CASE("RHOF")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, densityFile
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'RHOF format error. Format is: RHOF [FILE].'
           CALL Error(6, message)
         ENDIF
         fileDensityFlag=.TRUE.
-        WRITE(message,*) ' (input) Read in density file from: ',densityFile 
+        WRITE(message,*) ' (input) Read in density file from: ',densityFile
         CALL WrtOut(6,message)
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 42) Whether to use atomic density.
       CASE("RHOA")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword
         atomicDensityFlag=.TRUE.
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 43) Specifying whether there is a density file.
-      CASE("OLDD", "OLDR") 
+      CASE("OLDD", "OLDR")
         READ(inputUnit, *) keyword
         fileDensityFlag=.TRUE.
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 44) Specify the number of time the input density file is read in
       CASE("RHOR")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, option
@@ -1615,13 +1620,13 @@ SUBROUTINE ReadOptions
         ENDIF
         CALL Uppercase(option)
         SELECT CASE (TRIM(option(1:1)))
-        CASE("X") ! 
+        CASE("X") !
             BACKSPACE inputUnit
             READ(inputUnit,*) keyword, option, xRepeat
-        CASE("Y") ! 
+        CASE("Y") !
             BACKSPACE inputUnit
             READ(inputUnit,*) keyword, option, yRepeat
-        CASE("Z") ! 
+        CASE("Z") !
             BACKSPACE inputUnit
             READ(inputUnit,*) keyword, option, zRepeat
         CASE DEFAULT
@@ -1629,7 +1634,7 @@ SUBROUTINE ReadOptions
           CALL Error(6, message)
         END SELECT
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 45) Specifying the maximum size of the output density file
       CASE("RHOM")
         READ(inputUnit,*,IOSTAT=fileStatus) keyword, maxMB
@@ -1638,7 +1643,7 @@ SUBROUTINE ReadOptions
           CALL Error(6, message)
         ENDIF
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 46) What do we want to print out for this calculation?
       CASE("PRIN")
         READ(inputUnit,*) keyword, option
@@ -1660,7 +1665,7 @@ SUBROUTINE ReadOptions
                   CALL Error(6, message)
               END SELECT
             END IF
-          ! mohan add 2014-06-27 
+          ! mohan add 2014-06-27
           CASE("CEL") ! frequency for geometry output during cell relax
             IF(rankGlobal==0) THEN
               BACKSPACE inputUnit
@@ -1709,7 +1714,7 @@ SUBROUTINE ReadOptions
             READ(inputUnit,*) keyword, option, dump_md_freq
             WRITE(message,*) "(input) dump MD information at frqeuency: ", dump_md_freq
             CALL WrtOut(6,message)
-        
+
           ! test only, not shown in PROFESS 3 manual
           CASE("KER") ! Print out the kernel after the kernels have been generated
             outputKernel = .TRUE.
@@ -1720,22 +1725,22 @@ SUBROUTINE ReadOptions
             CALL Error(6, message)
         END SELECT
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! 47) Transistion state finder.  When the transition state finder is
       ! integrated into this code, this part will CHANGE.
-      CASE("TRAN") 
+      CASE("TRAN")
         READ(inputUnit,*) keyword, option
         CALL Uppercase(option)
-        SELECT CASE (TRIM(option(1:2)))          
+        SELECT CASE (TRIM(option(1:2)))
         CASE("ON")
           IF (rankGlobal==0) outputTransitionState = .TRUE.
         CASE("OF")
           IF (rankGlobal==0) outputTransitionState = .FALSE.
         END SELECT
 
-      !-----------------------------------------------------------------------------  
-      ! 48) 
-      CASE("NNDI") 
+      !-----------------------------------------------------------------------------
+      ! 48)
+      CASE("NNDI")
         READ(inputUnit,*, iostat=fileStatus) keyword, nnDist
         IF (fileStatus/=0) THEN
           WRITE(message,*) 'Error in reading nnDist keyword.'
@@ -1746,12 +1751,12 @@ SUBROUTINE ReadOptions
           CALL WrtOut(6,message)
         ELSE
           nnDist = nnDist/bohr
-          WRITE(message,'('' (input) Threshold of atom distance      : '',F16.8,'' Bohr'')') nnDist 
+          WRITE(message,'('' (input) Threshold of atom distance      : '',F16.8,'' Bohr'')') nnDist
           CALL WrtOut(6,message)
         ENDIF
 
-      !-----------------------------------------------------------------------------  
-      ! 49) 
+      !-----------------------------------------------------------------------------
+      ! 49)
       CASE("NNBI")
         ! Compute nearest atom distance using binning method?
         READ(inputUnit,*, iostat=fileStatus) keyword, tempReal
@@ -1770,19 +1775,19 @@ SUBROUTINE ReadOptions
         ENDIF
 
 
-      !-----------------------------------------------------------------------------  
-      ! 51) Use Density Decomposition Method 
+      !-----------------------------------------------------------------------------
+      ! 51) Use Density Decomposition Method
       CASE("UDDM")
         READ(inputUnit, *)
         do_den_dec=1
         CALL WrtOut(6," (input) Use Density Decomposition Method (DDM)")
 
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! BELOW WILL NOT BE WRITTEN INTO MANUAL
       ! FOR TESTS ONLY
-      !-----------------------------------------------------------------------------  
+      !-----------------------------------------------------------------------------
       ! only used in RhoOptSTN
-      CASE("CHEA") 
+      CASE("CHEA")
         READ(inputUnit,*) keyword, option
         CALL Uppercase(option)
         SELECT CASE (TRIM(option(1:2)))
@@ -1793,9 +1798,9 @@ SUBROUTINE ReadOptions
         END SELECT
 
       ! MD PARAMETER: If we change temperature during MD simulation?
-      CASE("CHGT") 
+      CASE("CHGT")
         READ(inputUnit, *, iostat=fileStatus) keyword, tempInt
-        IF (tempInt > 0)  THEN 
+        IF (tempInt > 0)  THEN
           fixTemperature = tempInt
           CALL WrtOut(6," (input) Temperature will be changed during the MD")
         ELSE
@@ -1831,7 +1836,7 @@ SUBROUTINE ReadOptions
   END DO
 
   ! Closing the file, we're done with it.
-  CLOSE (inputUnit, status="keep") 
+  CLOSE (inputUnit, status="keep")
 
 
   ! These variables are needed for OUTPUT.  Initialize them here.  But
@@ -1891,7 +1896,7 @@ SUBROUTINE CheckOptions
     STOP
   END IF
 
-  
+
   IF( mdType .EQ. 1 ) THEN
 
     IF( temperature < 0.0_DP ) THEN
@@ -1899,21 +1904,21 @@ SUBROUTINE CheckOptions
       WRITE(message(num),*) " Temperature (e.g. 'NOSE TM 300.0') should be > 0, TM=",temperature
     END IF
 
-    IF( timeTot < 0.0_DP ) THEN 
+    IF( timeTot < 0.0_DP ) THEN
       num = num + 1
       WRITE(message(num),*) " Total time (e.g. 'NOSE TI 1.0e-12') should be > 0, TI=",timeTot
     END IF
 
-    IF( dt < 0.0_DP ) THEN 
+    IF( dt < 0.0_DP ) THEN
       num = num + 1
       WRITE(message(num),*) " Delta time (e.g. 'NOSE DT 0.1e-15') should be > 0, DT=",dt
     END IF
 
-    IF( Qmass < 0.0_DP ) THEN 
+    IF( Qmass < 0.0_DP ) THEN
       num = num + 1
       WRITE(message(num),*) " Qmass (e.g. 'NOSE QM 10.0') should be > 0, QM=",Qmass
     END IF
-  
+
   ENDIF
 
 
@@ -1925,7 +1930,7 @@ SUBROUTINE CheckOptions
 
   ! If there are any errors, print the message and stop.
   IF ( num .GE. 1 ) THEN
-    CALL Error(6,message,num) 
+    CALL Error(6,message,num)
   ENDIF
 
 END SUBROUTINE CheckOptions
@@ -1942,7 +1947,7 @@ END SUBROUTINE CheckOptions
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
 !-----------------------------------------------------------------------
-FUNCTION promatches( string1, string2 )  
+FUNCTION promatches( string1, string2 )
   !-----------------------------------------------------------------------
   !
   ! ... .TRUE. if string1 is contained in string2, .FALSE. otherwise
@@ -1951,28 +1956,28 @@ FUNCTION promatches( string1, string2 )
   !
   CHARACTER (LEN=*), INTENT(IN) :: string1, string2
   LOGICAL                       :: promatches
-  INTEGER                       :: len1, len2, l  
+  INTEGER                       :: len1, len2, l
   !
   !
-  len1 = LEN_TRIM( string1 )  
-  len2 = LEN_TRIM( string2 )  
+  len1 = LEN_TRIM( string1 )
+  len2 = LEN_TRIM( string2 )
   !
-  DO l = 1, ( len2 - len1 + 1 )  
-     !   
-     IF ( string1(1:len1) == string2(l:(l+len1-1)) ) THEN  
+  DO l = 1, ( len2 - len1 + 1 )
+     !
+     IF ( string1(1:len1) == string2(l:(l+len1-1)) ) THEN
         !
-        promatches = .TRUE.  
+        promatches = .TRUE.
         !
-        RETURN  
+        RETURN
         !
      END IF
      !
   END DO
   !
   promatches = .FALSE.
-  ! 
+  !
   RETURN
   !
 END FUNCTION promatches
 
-END MODULE ReadInputFile 
+END MODULE ReadInputFile

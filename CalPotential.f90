@@ -2,15 +2,15 @@ MODULE CalPotPlus
 !------------------------------------------------------------------------------
 ! STRUCTURE OF MODULE:
 !   MODULE CalPotPlus
-!     |_SUBROUTINE CalculatePotentialPlus 
+!     |_SUBROUTINE CalculatePotentialPlus
 !       |_SUBROUTINE CalculateIonPotPlus
 !       |_SUBROUTINE CalculateHartreePotPlus
 !       |_SUBROUTINE CalculateExcPotPlus
 !       |_SUBROUTINE CalculateKEDFPotPlus
-!       |_SUBROUTINE CalculateEnergy 
-! 
+!       |_SUBROUTINE CalculateEnergy
+!
 ! DESCRIPTION:
-!   this module calculate the direction=dE/dphi, where phi = sqrt(rho), 
+!   this module calculate the direction=dE/dphi, where phi = sqrt(rho),
 !   this direction is then used to generate the next direction.
 !
 ! CONDITIONS AND ASSUMPTIONS:
@@ -42,7 +42,7 @@ SUBROUTINE CalculatePotentialPlus(rho, optSqrt, potential, eTable)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
 !   Calculates the potential in real-space (same dims as rho),
-!   stores in POTENTIAL.  Potential will be dE/d(sqrt(rho)) if optSqrt=.TRUE., 
+!   stores in POTENTIAL.  Potential will be dE/d(sqrt(rho)) if optSqrt=.TRUE.,
 !   dE/d(rho) if optSqrt=.FALSE.  This calculates energy if eTable is present.
 !
 ! CONDITIONS AND ASSUMPTIONS:
@@ -65,10 +65,10 @@ SUBROUTINE CalculatePotentialPlus(rho, optSqrt, potential, eTable)
 
                     !>> EXTERNAL VARIABLES <<!
 
-  REAL(kind=DP), DIMENSION(:,:,:,:), INTENT(IN) :: rho 
+  REAL(kind=DP), DIMENSION(:,:,:,:), INTENT(IN) :: rho
   ! The electron density.
   !
-  LOGICAL, INTENT(IN) :: optSqrt  
+  LOGICAL, INTENT(IN) :: optSqrt
   ! Take derivative relative to sqrt(rho) (instead of rho)
   !
   REAL(KIND=DP), DIMENSION(n1G, n2G, n3G,numSpin), INTENT(OUT) :: potential
@@ -76,31 +76,31 @@ SUBROUTINE CalculatePotentialPlus(rho, optSqrt, potential, eTable)
   !
   REAL(KIND=DP), DIMENSION(n1G, n2G, n3G, numSpin) :: work
   !
-  REAL(KIND=DP), DIMENSION(:), OPTIONAL, INTENT(OUT) :: eTable 
+  REAL(KIND=DP), DIMENSION(:), OPTIONAL, INTENT(OUT) :: eTable
   ! Energies
 
                     !>> INTERNAL VARIABLES <<!
 
-  REAL(KIND=DP), DIMENSION(:,:,:), ALLOCATABLE :: rhoReal_SI  
+  REAL(KIND=DP), DIMENSION(:,:,:), ALLOCATABLE :: rhoReal_SI
   ! Electron density in real space, spin independent
   !
   REAL(KIND=DP), DIMENSION(n1G, n2G, n3G) :: tempPotential
   !
-  REAL(KIND=DP), DIMENSION(n1G, n2G, n3G) :: del_rho 
+  REAL(KIND=DP), DIMENSION(n1G, n2G, n3G) :: del_rho
   ! Delocalized electron density.
-  ! For density decomposition method 
+  ! For density decomposition method
   !
-  INTEGER :: isp  
+  INTEGER :: isp
   ! spin index
   LOGICAL :: calcEnergy
   ! calculate the energy for each term or not
   LOGICAL :: calcAllTxS !VVK ADDED: calculate TxS0, negTxS in all GGA Fs (e.g. TGGAPotentialPlus)
   !
-  REAL(KIND=DP), DIMENSION(21) :: locETable ! VVK: changed: 9 --> 21 
+  REAL(KIND=DP), DIMENSION(21) :: locETable ! VVK: changed: 9 --> 21
   !                                         ! be sure to have same dimension as dim of "energy" in System.f90
   ! Table of energies within this subroutine
   !
-  REAL(KIND=DP) :: tmp, etmp           
+  REAL(KIND=DP) :: tmp, etmp
   ! Volume element
   REAL(KIND=DP) :: etmp2,etmp3,etmp4 !VVK
   !
@@ -119,7 +119,7 @@ SUBROUTINE CalculatePotentialPlus(rho, optSqrt, potential, eTable)
   END IF
 
   rhoReal_SI = 0.d0
-  DO isp = 1, numSpin  
+  DO isp = 1, numSpin
      rhoReal_SI =  rhoReal_SI + rho(:,:,:,isp)
   ENDDO
 
@@ -133,7 +133,7 @@ SUBROUTINE CalculatePotentialPlus(rho, optSqrt, potential, eTable)
   CALL CalculateIonPotPlus()
 
   IF (calcEnergy) THEN
-    locETable(3) = IonElectronEnergyReal(rhoReal_SI, potential(:,:,:,1)) 
+    locETable(3) = IonElectronEnergyReal(rhoReal_SI, potential(:,:,:,1))
   ENDIF
 
   ! (2) Hartree potential
@@ -149,7 +149,7 @@ SUBROUTINE CalculatePotentialPlus(rho, optSqrt, potential, eTable)
 
   ! (4) KEDF potential
   IF(do_den_dec==1) THEN
-    ! Here we can not use total density, 
+    ! Here we can not use total density,
     ! only delocalized density is used here.
     ! because delocalized density is the optimized variable.
     CALL CalculateKEDFPotPlus(del_rho)
@@ -164,7 +164,7 @@ SUBROUTINE CalculatePotentialPlus(rho, optSqrt, potential, eTable)
   IF (calcEnergy) THEN
     CALL CalculateEnergy
   END IF
-    
+
   IF(ALLOCATED(rhoReal_SI)) THEN
     DEALLOCATE(rhoReal_SI)
   ENDIF
@@ -198,7 +198,7 @@ SUBROUTINE CalculateIonPotPlus
   !========================
   ! Ion-electron terms
   !========================
-  ! mohan update this on 2014-06-30, remove the required FFT  
+  ! mohan update this on 2014-06-30, remove the required FFT
   !CALL FFT_NEW(FFT_STD_STATE, ionPotRecip, potential(:,:,:,1))
   potential(:,:,:,1) = ionPotReal(:,:,:)
 
@@ -242,7 +242,7 @@ END SUBROUTINE CalculateHartreePotPlus
 SUBROUTINE CalculateExcPotPlus(rhoReal_SI)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-! Calculate the exchange-correlation energy Exc[rho(r)] and 
+! Calculate the exchange-correlation energy Exc[rho(r)] and
 ! potential Vxc[rho(r)] for a given charge density
 !
 ! CONDITIONS AND ASSUMPTIONS:
@@ -266,7 +266,7 @@ SUBROUTINE CalculateExcPotPlus(rhoReal_SI)
   USE FXC_KSDT, ONLY: KSDT_EXC ! Exc (internal XC energy) from the KSDT; VVK
   USE FXC_PDW00, ONLY: PD00XCPotentialPlus ! Fxc, and Vxc from the PDW00; VVK
 
- 
+
   IMPLICIT NONE
   REAL(KIND=DP), DIMENSION(:,:,:), INTENT(IN) :: rhoReal_SI !VVK ADDED
 
@@ -342,19 +342,19 @@ SUBROUTINE CalculateKEDFPotPlus(rhoOpt)
   USE KEDF_TF, ONLY: CalTF
   USE KEDF_VW, ONLY: CalVW
   USE KEDF_WT, ONLY : WTPotentialPlus
-  USE KEDF_WGC, ONLY : WGCPotentialPlus   
+  USE KEDF_WGC, ONLY : WGCPotentialPlus
   USE KEDF_Q, ONLY: CalLHQ
   USE KEDF_CAT, ONLY: CalCAT
-  USE KEDF_HC10, ONLY: intPot 
-  USE KEDF_WGCD, ONLY : DecomposeDensityKEDF 
-  USE KEDF_DenDec, ONLY: potDD 
+  USE KEDF_HC10, ONLY: intPot
+  USE KEDF_WGCD, ONLY : DecomposeDensityKEDF
+  USE KEDF_DenDec, ONLY: potDD
   USE KEDF_GGA, ONLY: GGA_functional
   USE KEDF_GGA, ONLY : model, GGAPotentialPlus, vWGTF
   USE KEDF_WGCD, ONLY: Fr
   USE KEDF_EvW, ONLY: Cal_EVC, Cal_EVT
   USE FS_TF, ONLY: TTF1PotentialPlus !T-dep. TF free-energy and potential; VVK
-  USE FS_GGA, ONLY: TGGAPotentialPlus !T-dep. GGA free-energy and potential; VVK
-  USE SYS, ONLY: bvac 
+  USE FS_GGA, ONLY: TGGAPotentialPlus, FNLSD !T-dep. GGA free-energy and potential; VVK
+  USE SYS, ONLY: bvac
   !consider better algorithm for vacuum or not
   !
   IMPLICIT NONE
@@ -363,16 +363,16 @@ SUBROUTINE CalculateKEDFPotPlus(rhoOpt)
   CHARACTER(LEN=500) :: message
   INTEGER :: ii, jj, kk
 
-  CALL Title("CalPotPlus::CalculateKEDFPotPlus") 
+  CALL Title("CalPotPlus::CalculateKEDFPotPlus")
   CALL StartClock("Pot_KEDF")
-  
+
   !=======================
-  ! Kinetic energy terms 
+  ! Kinetic energy terms
   !=======================
   SELECT CASE(kinetic)
 
     !-----------------------------------------
-    ! Thomas Fermi 
+    ! Thomas Fermi
     !-----------------------------------------
     CASE(1)
       ! TF potential will add to previous potential,
@@ -385,7 +385,7 @@ SUBROUTINE CalculateKEDFPotPlus(rhoOpt)
       ENDIF
 
     !-----------------------------------------
-    ! VW 
+    ! VW
     !-----------------------------------------
     CASE(2)
       ! VW potential will calculate dE/d(sqrt(rho)) directly,
@@ -394,13 +394,13 @@ SUBROUTINE CalculateKEDFPotPlus(rhoOpt)
       IF (optSqrt) THEN
         potential = 2._DP * SQRT(rho) * potential
       ENDIF
-      ! calculate VW potential and add it to potential. 
+      ! calculate VW potential and add it to potential.
       CALL CalVW(potential, rho, calcEnergy, optSqrt, locETable(8))
-    
+
     !-----------------------------------------
     ! VW + TF
     !-----------------------------------------
-    CASE(3)    
+    CASE(3)
       CALL CalTF(potential, rho, calcEnergy, locETable(7))
       IF (optSqrt) THEN
         potential = 2._DP * SQRT(rho) * potential
@@ -408,7 +408,7 @@ SUBROUTINE CalculateKEDFPotPlus(rhoOpt)
       CALL CalVW(potential, rho, calcEnergy, optSqrt, locETable(8))
 
     !-----------------------------------------
-    ! Wang-Teter 
+    ! Wang-Teter
     !-----------------------------------------
     CASE(4)
       CALL CalTF(potential, rho, calcEnergy, locETable(7))
@@ -453,33 +453,33 @@ SUBROUTINE CalculateKEDFPotPlus(rhoOpt)
         potential = 2._DP * SQRT(rho) * potential
       ENDIF
       CALL CalVW(potential, rho, calcEnergy, optSqrt, locETable(8))
-     
+
     !-----------------------------------------
     ! LQ-KEDF
     !-----------------------------------------
-    CASE(7) 
+    CASE(7)
       SELECT CASE(numSpin)
         CASE(1)
           ! the last parameter '.TRUE.' indicates LQ KEDF
           CALL CalLHQ(potential(:,:,:,1), rhoOpt, calcEnergy, optSqrt, &
-                     locETable(7), locETable(8), locETable(9), .TRUE.)      
+                     locETable(7), locETable(8), locETable(9), .TRUE.)
         CASE(2)
           STOP "not implement spin-polarized for LQ KEDF, stop."
       END SELECT
-      
+
     !-----------------------------------------
     ! HQ - KEDF
     !-----------------------------------------
-    CASE(8) 
+    CASE(8)
       SELECT CASE(numSpin)
         CASE(1)
           ! the last parameter '.FALSE.' indicates HQ KEDF
           CALL CalLHQ(potential(:,:,:,1), rhoOpt, calcEnergy, optSqrt, &
-                     locETable(7), locETable(8), locETable(9), .FALSE.)      
+                     locETable(7), locETable(8), locETable(9), .FALSE.)
         CASE(2)
           STOP "not implement spin-polarized for HQ KEDF, stop."
       END SELECT
-                   
+
     !-----------------------------------------
     ! CAT KEDF
     !-----------------------------------------
@@ -491,18 +491,18 @@ SUBROUTINE CalculateKEDFPotPlus(rhoOpt)
         CASE(2)
           STOP "not implement spin-polarized for CAT KEDF, stop."
       END SELECT
-      
+
     !-----------------------------------------
-    ! Huang-Carter KEDF 
+    ! Huang-Carter KEDF
     !-----------------------------------------
-    CASE(11) 
+    CASE(11)
       CALL CalTF(potential, rho, calcEnergy, locETable(7))
       SELECT CASE(numSpin)
-        CASE(1)    
+        CASE(1)
            ! Compute the interpolation term
            tempPotential = intPot(rhoOpt, energyHC)
            IF(calcEnergy) THEN
-             locETable(9)  = energyHC 
+             locETable(9)  = energyHC
            ENDIF
            potential = potential + SPREAD(tempPotential, 4, numSpin)
         CASE(2)
@@ -525,7 +525,7 @@ SUBROUTINE CalculateKEDFPotPlus(rhoOpt)
         CALL CalVW(potential, rho, calcEnergy, optSqrt, locETable(8))
 
     !-----------------------------------------
-    ! WGCD KEDF 
+    ! WGCD KEDF
     !-----------------------------------------
     CASE (12)  ! Decompose the density
       ! only for spin-unpolarized calculation now
@@ -542,7 +542,7 @@ SUBROUTINE CalculateKEDFPotPlus(rhoOpt)
       ENDIF
 
     !-----------------------------------------
-    ! GGA semilocal functionals 
+    ! GGA semilocal functionals
     !-----------------------------------------
     CASE (15)  ! GGA semilocal functionals
       ! only for spin-unpolarized calculation now
@@ -582,7 +582,7 @@ SUBROUTINE CalculateKEDFPotPlus(rhoOpt)
       ENDIF
 
     !-----------------------------------------
-    ! EvW KEDF with WT 
+    ! EvW KEDF with WT
     !-----------------------------------------
     CASE (17)
       CALL Cal_EVT(potential, rho, calcEnergy, locETable, optSqrt)
@@ -631,10 +631,18 @@ SUBROUTINE CalculateKEDFPotPlus(rhoOpt)
       !functionalTime(12)=functionalTime(12)+TimerStop(watch)
       !functionalTime(7)=functionalTime(7)+TimerStop(watch)
 ! <-- VVK END
-
+! --> TWY ADDED
+    ! Sjostrom and Daligault free energy functional
+    CASE(1200)
+      ! Since kinetic and entropic contributions can't be separated for this functional, we instead use the outputs for the non-local vW term
+      ! and the non-local term
+      CALL FNLSD(rhoOpt, tempPotential, calcEnergy, locETable(7),locETable(8),locETable(9))
+      potential = potential + SPREAD(tempPotential, 4, numSpin)
+      IF (optSqrt) potential = 2._DP * SQRT(rho) * potential
+! <-- TWY END
     CASE DEFAULT  ! This case should never occur.
       message=" CalculatePotentialPlus: The KEDF selected is not implemented. STOP."
-      WRITE(errorUnit,'(A)') message 
+      WRITE(errorUnit,'(A)') message
       CALL QUIT(message);
       STOP
 
@@ -663,7 +671,7 @@ SUBROUTINE CalculateEnergy
 
     USE MPI_Functions, ONLY: ReduceRealLevel1
     USE Ewald, ONLY: ionIonEnergy
- 
+
     IMPLICIT NONE
 
 !--> VVK

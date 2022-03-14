@@ -1,0 +1,2286 @@
+diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/CalPotential.f90 OFQE2.0.1_patched/PROFESS3.0m5/Source/CalPotential.f90
+--- OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/CalPotential.f90	2019-05-28 09:28:22.000000000 +0100
++++ OFQE2.0.1_patched/PROFESS3.0m5/Source/CalPotential.f90	2022-03-14 16:03:19.959397594 +0000
+@@ -342,19 +342,19 @@
+   USE KEDF_TF, ONLY: CalTF
+   USE KEDF_VW, ONLY: CalVW
+   USE KEDF_WT, ONLY : WTPotentialPlus
+   USE KEDF_WGC, ONLY : WGCPotentialPlus   
+   USE KEDF_Q, ONLY: CalLHQ
+   USE KEDF_CAT, ONLY: CalCAT
+   USE KEDF_HC10, ONLY: intPot 
+   USE KEDF_WGCD, ONLY : DecomposeDensityKEDF 
+   USE KEDF_DenDec, ONLY: potDD 
+   USE KEDF_GGA, ONLY: GGA_functional
+   USE KEDF_GGA, ONLY : model, GGAPotentialPlus, vWGTF
+   USE KEDF_WGCD, ONLY: Fr
+   USE KEDF_EvW, ONLY: Cal_EVC, Cal_EVT
+   USE FS_TF, ONLY: TTF1PotentialPlus !T-dep. TF free-energy and potential; VVK
+-  USE FS_GGA, ONLY: TGGAPotentialPlus !T-dep. GGA free-energy and potential; VVK
+-  USE SYS, ONLY: bvac 
++  USE FS_GGA, ONLY: TGGAPotentialPlus, FNLSD !T-dep. GGA free-energy and potential; VVK
++  USE SYS, ONLY: bvac
+   !consider better algorithm for vacuum or not
+   !
+   IMPLICIT NONE
+@@ -631,10 +631,18 @@
+       !functionalTime(12)=functionalTime(12)+TimerStop(watch)
+       !functionalTime(7)=functionalTime(7)+TimerStop(watch)
+ ! <-- VVK END
+-
++! --> TWY ADDED
++    ! Sjostrom and Daligault free energy functional
++    CASE(1200)
++      ! Since kinetic and entropic contributions can't be separated for this functional, we instead use the outputs for the non-local vW term
++      ! and the non-local term
++      CALL FNLSD(rhoOpt, tempPotential, calcEnergy, locETable(7),locETable(8),locETable(9))
++      potential = potential + SPREAD(tempPotential, 4, numSpin)
++      IF (optSqrt) potential = 2._DP * SQRT(rho) * potential
++! <-- TWY END
+     CASE DEFAULT  ! This case should never occur.
+       message=" CalculatePotentialPlus: The KEDF selected is not implemented. STOP."
+       WRITE(errorUnit,'(A)') message 
+       CALL QUIT(message);
+       STOP
+ 
+diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/FS_GGA.f90 OFQE2.0.1_patched/PROFESS3.0m5/Source/FS_GGA.f90
+--- OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/FS_GGA.f90	2019-05-28 09:28:22.000000000 +0100
++++ OFQE2.0.1_patched/PROFESS3.0m5/Source/FS_GGA.f90	2022-03-14 16:03:48.182090397 +0000
+@@ -24,8 +24,10 @@
+ ! STRUCTURE OF MODULE:
+ !   MODULE FS_GGA
+ !     |_SUBROUTINE TGGAPotentialPlus    (T-dependent GGA (with -TS term included, kinetic=xxxx)
++! --> TWY ADDED
++!     |_SUBROUTINE FNLSD
++! <-- TWY END
+ !     |_FUNCTION TGGAStress             (finite-T TF stress)
+-!     |_SUBROUTINE FGGAxxxx             (enhancement factors for many GGA F_s functionals)
+ !     |_...
+ !     |_SUBROUTINE FGGAyyyy
+ !
+@@ -782,6 +785,181 @@
+ !
+ !------------------------------------------------------------------------------
+ !------------------------------------------------------------------------------
++! --> TWY ADDED
++SUBROUTINE FNLSD(rhoReal_SI, potential, calcEnergy, TTFenergy,vWenergy,NLenergy)
++  !------------------------------------------------------------------------------
++  ! DESCRIPTION:
++  ! Evaluates Sjostrom and Daligault non-local free-energy functional (SDF)
++  !
++  ! GLOBAL/MODULE VARIABLES CHANGED:
++  !
++  ! CONDITIONS AND ASSUMPTIONS:
++  !
++  ! FUTURE OPTIMIZATIONS AND IMPROVEMENTS:
++  !
++  !   Make its own .f90 file with outputs of ETable(7:9), kinetic, vW, and
++  !   non-local energies
++  !
++  ! REFERENCES:
++  !
++  !------------------------------------------------------------------------------
++  ! REVISION LOG:
++  !
++  !------------------------------------------------------------------------------
++  ! ******** INPUT ******************************************************
++  !
++  ! ******** OUTPUT *****************************************************
++  !
++  !------------------------------------------------------------------------------
++
++  USE KEDF_WTkernel, ONLY: keKernel, keKernelB
++
++  IMPLICIT NONE
++
++  !>> EXTERNAL VARIABLES <<!
++  REAL(kind=DP), DIMENSION(:,:,:), INTENT(IN)  :: rhoReal_SI            ! Electron density in real space, spin INDEPENDENT
++  REAL(kind=DP), DIMENSION(:,:,:), INTENT(OUT) :: potential           ! The XC potential
++  LOGICAL,                          INTENT(IN) :: calcEnergy          ! controls calculation of free-energy
++  REAL(kind=DP),                   INTENT(OUT) :: TTFenergy,vWenergy,NLenergy
++
++  REAL(KIND=DP) :: temperHa, coeff, TFpressure, Imh !Imh = Fermi integral with alpha=-1/2
++  REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: tmpRho, &
++    tred, dtreddn, TFpot, tau0, dfdt, dydt, y, f, dfdy, d2fdy2, h, dhdy, d2hdy2
++  REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: sqrtRho_SI, potentialSqrt, tempPotential
++  REAL(kind=DP), parameter :: &
++    one = 1._DP,&
++    two = 2._DP,&
++    threehalf = 1.5_DP,&
++    fivehalf = 2.5_DP,&
++    fivethird = 5._DP/3._DP,&
++    twothird = 2._DP/3._DP , &
++    onethird = 1._DP/3._DP, &
++    fourthird = 4._DP/3._DP, &
++    seventhird = 7._DP/3._DP,   &
++    eightthird = 8._DP/3._DP, &
++    a = 5._DP/6._DP, &
++    b = 5._DP/6._DP
++  INTEGER :: &
++    i,j,k
++  COMPLEX(kind=DP), DIMENSION(k1G, k2G, k3G) :: trafo, w, beta
++#ifdef __FFTW2
++#else
++  COMPLEX(kind=DP), DIMENSION(k1G, k2G, k3G) :: rhob,rhoa,tempPotential2
++#endif
++
++  tmpRho = rhoReal_SI
++  where ( rhoReal_SI < 1.d-20 )
++    tmpRho = 1.d-20
++  endwhere
++
++  sqrtRho_SI = SQRT(tmpRho)
++
++  TTFenergy = 0._DP
++  potential = 0._DP
++  vWenergy = 0._DP
++  NLenergy = 0._DP
++  if(calcSTRESS) vkin2 = 0._DP
++
++  temperHa=temper/11604.5_DP/27.211396132_DP !100 K--> eV--> Hartree
++  coeff = 3._DP/10._DP*(3._DP*pi**2)**(twothird)
++  tau0 = coeff*tmpRho**fivethird
++  tred = temperHa/((3._DP*PI**2*tmpRho)**twothird/two) !reduced temp (temper/tempF is el. temperature in a.u.)
++  dtreddn = -twothird*tred/tmpRho ! (dt/dn)
++  y = twothird/tred**threehalf!y=2/3/t_red^(3/2)
++  CALL FPERROT2(Y,F,dFdY,d2FdY2,H,dHdY,d2HdY2)
++  dydt=(-threehalf)*y/tred         ! dy/dt=-3/2 * y/t
++  dfdt=dfdy*dydt
++
++  TFpot = (coeff * fivethird * tmpRho**twothird) * &  ! v_TF0 *
++               (fivethird * tred * f) + &                 ! 5/3 * t * f(t)
++                fivethird * tau0 * dtreddn * &            ! 5/3 * tau_0 * (dt/dn) *
++              (f+tred*dfdt)                               ! (f(t)+t * df(t)/dt)
++
++
++  ! TF term
++  potential = potential + TFpot
++  TFpressure = -SUM(coeff*fivethird*tmpRho**(5._DP/3._DP)*tred*f - tmpRho*TFpot)
++
++  IF (calcEnergy) THEN
++    TTFenergy = TTFenergy + coeff*fivethird*SUM(tmpRho**(5._DP/3._DP) * tred * f)
++    TFpressure = (2._DP/3._DP)*TTFenergy
++  ENDIF
++
++
++  DO i=1,SIZE(w,1)
++    DO j=1,SIZE(w,2)
++      DO k=1,SIZE(w,3)
++        w(i,j,k) = keKernel(i,j,k,1)
++        beta(i,j,k) = keKernelB(i,j,k)
++      ENDDO
++    ENDDO
++  ENDDO
++
++  ! vW term
++  ! choose between old FFT and FFT_NEW, the latter one seems do not work in parallel
++#ifdef __FFTW2
++  ! old FFT:
++  trafo = FFT_2(sqrtRho_SI)
++
++  potentialSqrt = FFT_2(trafo * qTable * qTable * (1 + beta))
++#else
++  CALL FFT_NEW(FFT_STD_STATE,sqrtRho_SI,trafo)
++  trafo = trafo * qTable * qTable * (1 + beta)
++  CALL FFT_NEW(FFT_STD_STATE,trafo,potentialSqrt)
++#endif
++
++  IF (calcEnergy) THEN
++#ifdef __FFTW2
++      ! old FFT:
++      trafo = FFT_2(sqrtRho_SI)
++#else
++      CALL FFT_NEW(FFT_STD_STATE,sqrtRho_SI,trafo)
++#endif
++    vWenergy = 0.5_DP * SUM(sqrtRho_SI*potentialSqrt)
++  ENDIF
++
++  ! This is currently for the sqrt of the density. We want all terms to be the density.
++  ! Chain rule: dE/d(rho) = dE/d(sqrt(rho)) / (2*sqrt(rho))
++  potentialSqrt = potentialSqrt/(2._DP*SQRT(tmpRho))
++
++  potential = potential + potentialSqrt
++
++
++
++  ! Non-local term
++#ifdef __FFTW2
++  tempPotential = FFT_2(FFT_2(tmpRho**b) * w)
++#else
++  CALL FFT_NEW(FFT_STD_STATE,tmpRho**b,rhob)
++  rhob = rhob * w
++  CALL FFT_NEW(FFT_STD_STATE,rhob,tempPotential)
++#endif
++
++  ! I don't think we need the factors of cTF due to the definition of the free energy
++  ! Compare WGC paper and SD paper definitions of the non-local component
++  ! Original can be found in KEDF_WT.f90
++  IF (calcEnergy) THEN
++    NLenergy = SUM(tmpRho**a * tempPotential)
++  ENDIF
++
++  ! I don't think we need the factors of cTF due to the definition of the free energy
++  ! Compare WGC paper and SD paper definitions of the non-local component
++#ifdef __FFTW2
++  tempPotential = (a * tmpRho**(a-1._DP) * tempPotential +&
++         b * tmpRho**(b-1._DP) * FFT_2(FFT_2(tmpRho**a) * w))
++#else
++  CALL FFT_NEW(FFT_STD_STATE,tmpRho**a,rhoa)
++  rhoa = rhoa * w
++  CALL FFT_NEW(FFT_STD_STATE,rhoa,tempPotential2)
++  tempPotential = (a * tmpRho**(a-1._DP) * tempPotential +&
++         b * tmpRho**(b-1._DP) * tempPotential2)
++#endif
++  potential = potential + tempPotential
++
++END SUBROUTINE FNLSD
++
++! <-- TWY END
++!------------------------------------------------------------------------------
+ SUBROUTINE FGGAVT84F(s2,F,dFds2,igga)
+ !------------------------------------------------------------------------------
+ ! DESCRIPTION:
+diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/KEDF_WTkernel.f90 OFQE2.0.1_patched/PROFESS3.0m5/Source/KEDF_WTkernel.f90
+--- OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/KEDF_WTkernel.f90	2014-12-01 20:18:02.000000000 +0000
++++ OFQE2.0.1_patched/PROFESS3.0m5/Source/KEDF_WTkernel.f90	2021-06-22 22:12:26.000000000 +0100
+@@ -22,35 +22,41 @@
+ !
+ !------------------------------------------------------------------------------
+ 
+-  USE CONSTANTS, ONLY: DP, PI 
++  USE CONSTANTS, ONLY: DP, PI
+   USE FOURIER, ONLY: FFT
+   USE SYS, ONLY: rho0
+   USE SYS, ONLY: rhoS
+   USE MathFunctions, ONLY: LindG
+-  USE PlaneWave, ONLY: qTable 
++  USE PlaneWave, ONLY: qTable
+   USE MPI_Functions
+   USE OutputFiles
+   USE OUTPUT, ONLY: WrtOut
++  USE CellInfo, ONLY: kinetic, k1G, k2G, k3G
++  USE FS_TF, ONLY: temper, FPERROT2
+ 
+   IMPLICIT NONE
+ 
+-                    !>> INTERNAL VARIABLES <<!  
++                    !>> INTERNAL VARIABLES <<!
+ 
+-  REAL(KIND=DP) :: alpha = -100.0_DP  
++  REAL(KIND=DP) :: alpha = -100.0_DP
+   ! Exponent to rho left of the kernel in WT and WGC.
+   !
+-  REAL(KIND=DP) :: beta = -100.0_DP   
++  REAL(KIND=DP) :: beta = -100.0_DP
+   ! Exponent to rho on the right side of the kernel in WT and WGC.
+   !
+-  REAL(KIND=DP), DIMENSION(:,:,:,:), ALLOCATABLE :: keKernel 
++  REAL(KIND=DP), DIMENSION(:,:,:,:), ALLOCATABLE :: keKernel
++  ! --> TWY
++  ! Kernel for non-local component of vW
++  REAL(KIND=DP), DIMENSION(:,:,:), ALLOCATABLE :: keKernelB
++  ! <-- TWY
+ 
+   ! When WT and WGC w/ periodic b.c., stored in recip space.
+ 
+   ! rinc is emperically determined. 0.1 seems to be
+-  ! converged w.r.t. 0.01 for a single atom in vacuum by 
++  ! converged w.r.t. 0.01 for a single atom in vacuum by
+   ! .004 meV/atom. This is no guarantee for other systems, though.
+   REAL(KIND=DP), PARAMETER :: rinc = 0.1_DP
+-  REAL(KIND=DP), PARAMETER :: maxr4K2 = 500._DP        
++  REAL(KIND=DP), PARAMETER :: maxr4K2 = 500._DP
+   ! Past this number, we will use the analytical formula for K_II.
+   REAL(KIND=DP), ALLOCATABLE, DIMENSION(:) :: wtKernelr
+   REAL(KIND=DP), ALLOCATABLE, DIMENSION(:) :: wtKernelFr
+@@ -73,6 +79,7 @@
+   REAL(KIND=DP) :: addValue
+   REAL(KIND=DP) :: rNorm
+   REAL(KIND=DP) :: k2Value
++  REAL(KIND=DP) :: q, mu0, temperHa
+ 
+ CONTAINS
+ 
+@@ -152,62 +159,1663 @@
+   USE KEDF_TF, ONLY: lambda
+   USE KEDF_VW, ONLY: mu
+   USE OUTPUT, ONLY: outputKernel
++  USE OUTPUTFILES, ONLY : &
++  outputUnit
+ 
+   IMPLICIT NONE
+-                    !>> EXTERNAL VARIABLES <<!  
++                    !>> EXTERNAL VARIABLES <<!
+ 
+-  INTEGER :: n_eta 
++  INTEGER :: n_eta
+   ! how many eta points I would like to print
+   !
+-  INTEGER :: ie    
++  INTEGER :: ie
+   ! the counter
+   !
+-  REAL(KIND=DP) :: d_eta 
++  REAL(KIND=DP) :: d_eta
+   ! delta eta
+   !
++  ! --> TWY
++  REAL(KIND=DP) :: tkF, kF, coeff, X_TF, tred0, dtreddn0, y0, eta0, f0, dfdy0, dydt0, dfdt0, X_0, abserr, Imh, tempX_0
++  REAL(kind=DP), DIMENSION(1,1,1) :: y0temp, f0temp, eta0temp, dfdy0temp, Imhtemp, d2FdY20, H0, dHdY0, d2HdY20
++  REAL(kind=DP), parameter :: &
++    one = 1._DP,&
++    two = 2._DP,&
++    threehalf = 1.5_DP,&
++    fivehalf = 2.5_DP,&
++    fivethird = 5._DP/3._DP,&
++    twothird = 2._DP/3._DP , &
++    onethird = 1._DP/3._DP, &
++    fourthird = 4._DP/3._DP, &
++    seventhird = 7._DP/3._DP,   &
++    eightthird = 8._DP/3._DP, &
++    a = 5._DP/6._DP, &
++    b = 5._DP/6._DP
++  INTEGER :: &
++    i,j,k,neval,ier
++  COMPLEX(kind=DP), DIMENSION(k1G, k2G, k3G) :: X_vW, invX_vW, &
++    cutf
++
++  IF(kinetic .eq. 1200) THEN
++
++    temperHa=temper/11604.5_DP/27.211396132_DP !100 K--> eV--> Hartree
++    kF = (3._DP * rho0 * pi**2)**(onethird)
++    tkF = 2._DP*(3._DP * rho0 * pi**2)**(onethird)
++    coeff = 3._DP/10._DP*(3._DP*pi**2)**(twothird)
++
++    tred0 = temperHa/((3._DP*PI**2*rho0)**twothird/two) !reduced temp (temper/tempF is el. temperature in a.u.)
++    dtreddn0 = -twothird*tred0/rho0 ! (dt/dn)
++    y0 = twothird/tred0**threehalf!y=2/3/t_red^(3/2)
++    ! FPERROT2 requires rank-3 array as input, so this is a naive way of doing it
++    y0temp(1,1,1) = y0
++    CALL FPERROT2(Y0temp,F0temp,dFdY0temp,d2FdY20,H0,dHdY0,d2HdY20)
++    f0 = F0temp(1,1,1)
++    dfdy0 = dFdY0temp(1,1,1)
++    dydt0=(-threehalf)*y0/tred0         ! dy/dt=-3/2 * y/t
++    dfdt0=dfdy0*dydt0
++    ! mu0 is equal to the TF potential at density rho0
++    mu0 = (coeff * fivethird * rho0**twothird) * &  ! v_TF0 *
++                 (fivethird * tred0 * f0) + &                 ! 5/3 * t * f(t)
++                  fivethird * coeff*rho0**fivethird * dtreddn0 * &            ! 5/3 * tau_0 * (dt/dn) *
++                (f0+tred0*dfdt0)                               ! (f(t)+t * df(t)/dt)
++
++    ! Janky way of inputing a scalar into a SUBROUTINE that requires an array
++    eta0 = mu0/temperHa
++    eta0temp(1,1,1) = eta0
++    CALL FDINTEGRALmh(eta0temp,Imhtemp)
++    Imh = Imhtemp(1,1,1)
++
++    X_TF = -(1._DP/(2._DP*pi*pi))*(2._DP*temperHa)**(1._DP/2._DP)*Imh ! Thomas-Fermi response function
++
++    ! X_vW(1,1,1) is infinity due to qTable(1,1,1)=0. Since only X_vW^-1 is needed, this
++    ! term will be 0 anyway, so can either throw away, or use LindG function with inbuilt
++    ! small q behaviour. Test both methods to check they give the same result.
++    X_vW = -(4._DP*kF**3._DP)/(3._DP*pi*pi*qTable*qTable) ! von-Weizsacker response function
++
++    ! Setting X_vW(1,1,1) = 0 to avoid infinity in X_vW^-1
++    ! This might not fix the problem as there is a X_vW^-1 in the denominator as well
++    invX_vW = 1._DP/X_vW
++    invX_vW(1,1,1) = 0._DP
++
++
++    cutf = EXP(-(qTable*qTable)/(16._DP*kF*kF))
++
++    !write(outputUnit,*) "mu0 = ",mu0
++    DO i=1,SIZE(X_vW,1)
++      DO j=1,SIZE(X_vW,2)
++        DO k=1,SIZE(X_vW,3)
++          q = REAL(qTable(i,j,k),DP)
++          tempX_0 = (1._DP+TANH(mu0/(2._DP*temperHa)))*LindT0(mu0)*(4._DP*temperHa)/2._DP
++          !IF(j .EQ. 1 .AND. k .EQ. 1) THEN
++            !write(outputUnit,*) "LindT0(mu0)(",i,",",j,",",k,") = ",LindT0(mu0)
++          !ENDIF
++          CALL qagi(LindT0mmu, 0._DP, 1, 1.49E-06, 0._DP, X_0, abserr, neval, ier)
++          X_0 = X_0 + tempX_0
++          !write(outputUnit,*) "X_0(",i,",",j,",",k,") = ",X_0
++          !X_0 = REAL(X_0_SP,DP)
++          keKernel(i,j,k,1) = (REAL(cutf(i,j,k),DP))*(-1._DP/X_0 + 1._DP/X_TF + REAL(invX_vW(i,j,k),DP))/(2._DP*a*b*rho0**(a+b-2._DP))
++          !IF(j .EQ. 1 .AND. k .EQ. 1) THEN
++            !write(outputUnit,*) "q(",i,",",j,",",k,") = ",q
++            !write(outputUnit,*) "tempX_0(",i,",",j,",",k,") = ",tempX_0
++            !write(outputUnit,*) "X_0(",i,",",j,",",k,") = ",X_0
++            !write(outputUnit,*) "w(",i,",",j,",",k,") = ",keKernel(i,j,k,1)
++          !ENDIF
++          keKernelB(i,j,k) = (REAL(cutf(i,j,k),DP)-1._DP)*(-1._DP/X_0 + 1._DP/X_TF + REAL(invX_vW(i,j,k),DP))/(REAL(invX_vW(i,j,k),DP))
++        ENDDO
++      ENDDO
++    ENDDO
+ 
+-  ! outputKernel can be set in the input file.
+-  ! only the main processor is allowed to write.
+-  IF(outputKernel .AND. rankGlobal==0) THEN
+-
+-    OPEN (unit=1985, file='KEDF-kernel-G.dat', status = 'unknown', form='formatted', action='write')
+-    WRITE(outputUnit,*) "Print the G space Wang-Teter KEDF kernels into KEDF-kernel-G.dat "
+-    WRITE(1985,'(A)') "4"
+-    WRITE(1985,'(ES22.15, A)') tkF
+-    WRITE(1985,'(ES22.15, A)') rhoS
+-
+-    ! set the value here, generally this is large enough for
+-    ! restart calculations
+-    n_eta = 50000
+-    d_eta = 0.001
++    keKernel(1,1,1,1) = 0._DP
++    keKernelB(1,1,1) = 0._DP
++  ELSE
++    ! outputKernel can be set in the input file.
++    ! only the main processor is allowed to write.
++    IF(outputKernel .AND. rankGlobal==0) THEN
++
++      OPEN (unit=1985, file='KEDF-kernel-G.dat', status = 'unknown', form='formatted', action='write')
++      WRITE(outputUnit,*) "Print the G space Wang-Teter KEDF kernels into KEDF-kernel-G.dat "
++      WRITE(1985,'(A)') "4"
++      WRITE(1985,'(ES22.15, A)') tkF
++      WRITE(1985,'(ES22.15, A)') rhoS
++
++      ! set the value here, generally this is large enough for
++      ! restart calculations
++      n_eta = 50000
++      d_eta = 0.001
++
++      WRITE(1985,'(I8, A)') n_eta
++
++      DO ie=1, n_eta
++        WRITE(1985,'(2ES20.12)') ie*d_eta, LindG(ie*d_eta,lambda,mu)
++      ENDDO
++
++      CLOSE(1985)
++      outputKernel=.FALSE.
++
++    ENDIF
++
++
++    WRITE(outputUnit,*) "Fill the 3D Wang-Teter kernel in G space"
++    ! fill the Wang-Teter kernel
++    DO i3=1, SIZE(keKernel,3)
++      DO i2=1, SIZE(keKernel,2)
++        DO ix=1, SIZE(keKernel,1)
++          keKernel(ix,i2,i3,1) = LindG(qTable(ix,i2,i3)/tkF,lambda,mu) * coef
++        END DO ! ix
++      END DO ! i2
++    ENDDO ! i3
++  ENDIF
+ 
+-    WRITE(1985,'(I8, A)') n_eta
++  RETURN
+ 
+-    DO ie=1, n_eta
+-      WRITE(1985,'(2ES20.12)') ie*d_eta, LindG(ie*d_eta,lambda,mu)
+-    ENDDO
++END SUBROUTINE FillWT_ReciprocalSpace
+ 
+-    CLOSE(1985)
+-    outputKernel=.FALSE.
++FUNCTION LindT0(E)
++  REAL(KIND=DP), INTENT(IN) :: E
++  REAL(KIND=DP) :: kF,eta,tkF,LindT0temp
++  REAL(KIND=DP) :: LindT0
++
++  IF(E .lt. 0) THEN
++    LindT0 = 0._DP
++  ELSE
++    kF = SQRT(2._DP*E)
++    tkF = 2._DP*kF
++    eta = q/(2._DP*kF)
++    LindT0temp = -kF/(PI*PI*(LindG(q/tkF,1._DP,1._DP) + 3._DP*(q/tkF)**2 + 1._DP))
++
++    LindT0 = LindT0temp/(4._DP*temperHa*COSH((E-mu0)/(2._DP*temperHa))**2)
++    IF(LindT0 .ne. LindT0) THEN
++      LindT0 = 0._DP
++    ENDIF
++  ENDIF
+ 
++END FUNCTION LindT0
++
++
++FUNCTION LindT0mmu(E)
++  REAL(KIND=DP), INTENT(IN) :: E
++  REAL(KIND=DP) :: kF,eta,tkF,LindT0temp
++  REAL(KIND=DP) :: LindT0mmu
++
++  IF(E .lt. 0) THEN
++    LindT0temp = 0._DP
++  ELSE
++    kF = SQRT(2._DP*E)
++    tkF = 2._DP*kF
++    eta = q/(2._DP*kF)
++    LindT0temp = -kF/(PI*PI*(LindG(q/tkF,1._DP,1._DP) + 3._DP*(q/tkF)**2 + 1._DP))
++  ENDIF
++  IF(mu0 .lt. 0) THEN
++    LindT0temp = LindT0temp
++  ELSE
++    kF = SQRT(2._DP*mu0)
++    tkF = 2._DP*kF
++    eta = q/(2._DP*kF)
++    LindT0temp = LindT0temp + (kF/(PI*PI*(LindG(q/tkF,1._DP,1._DP) + 3._DP*(q/tkF)**2 + 1._DP)))
++  ENDIF
++  IF(E .lt. 0 .AND. mu0 .lt. 0) THEN
++    LindT0mmu = 0._DP
++  ELSE
++    LindT0mmu = LindT0temp/(4._DP*temperHa*COSH((E-mu0)/(2._DP*temperHa))**2)
++  ENDIF
++  IF(LindT0mmu .ne. LindT0mmu) THEN
++    LindT0mmu = 0._DP
+   ENDIF
+ 
++END FUNCTION LindT0mmu
+ 
+-  WRITE(outputUnit,*) "Fill the 3D Wang-Teter kernel in G space"
+-  ! fill the Wang-Teter kernel
+-  DO i3=1, SIZE(keKernel,3)
+-    DO i2=1, SIZE(keKernel,2)
+-      DO ix=1, SIZE(keKernel,1)
+-        keKernel(ix,i2,i3,1) = LindG(qTable(ix,i2,i3)/tkF,lambda,mu) * coef 
+-      END DO ! ix
+-    END DO ! i2
+-  ENDDO ! i3
++SUBROUTINE FDINTEGRALmh(x,Imh)
+ 
+-  RETURN
++  !
+ 
+-END SUBROUTINE FillWT_ReciprocalSpace
++  ! double precision rational minimax approximation of Fermi-Dirac integral of order k=-1/2
++
++  !
++
++  ! Reference: Fukushima, T. (2014, submitted to App. Math. Comp.)
++
++  !
++
++  ! Author: Fukushima, T. <Toshio.Fukushima@nao.ac.jp>
++
++  !
++
++  REAL(kind=DP), DIMENSION(:,:,:), INTENT(IN) :: x
++
++  REAL(kind=DP) :: ex,t,w,s,fd
++
++  REAL(kind=DP), parameter :: factor=2.d0
++
++  REAL(kind=DP), DIMENSION(:,:,:), INTENT(OUT) :: Imh
++
++  INTEGER :: &
++  i,j,k
++  !
++
++  !write(*,"(a20,1pe15.7)") "(fdm1h) x=",x
++
++  do i=1,size(x,1)
++  do j=1,size(x,2)
++  do k=1,size(x,3)
++
++  if(x(i,j,k).lt.-2.d0) then
++
++      ex=exp(x(i,j,k))
++
++      t=ex*7.38905609893065023d0
++
++      fd=ex*(1.77245385090551603d0 &
++
++      -ex*(40641.4537510284430d0 &
++
++      +t*(9395.7080940846442d0 &
++
++      +t*(649.96168315267301d0 &
++
++      +t*(12.7972295804758967d0 &
++
++      +t*0.00153864350767585460d0 &
++
++      ))))/(32427.1884765292940d0 &
++
++      +t*(11079.9205661274782d0 &
++
++      +t*(1322.96627001478859d0 &
++
++      +t*(63.738361029333467d0 &
++
++      +t)))))
++
++  elseif(x(i,j,k).lt.0.d0) then
++
++      s=-0.5d0*x(i,j,k)
++
++      t=1.d0-s
++
++      fd=(272.770092131932696d0 &
++
++      +t*(30.8845653844682850d0 &
++
++      +t*(-6.43537632380366113d0 &
++
++      +t*(14.8747473098217879d0 &
++
++      +t*(4.86928862842142635d0 &
++
++      +t*(-1.53265834550673654d0 &
++
++      +t*(-1.02698898315597491d0 &
++
++      +t*(-0.177686820928605932d0 &
++
++      -t*0.00377141325509246441d0 &
++
++      ))))))))/(293.075378187667857d0 &
++
++      +s*(305.818162686270816d0 &
++
++      +s*(299.962395449297620d0 &
++
++      +s*(207.640834087494249d0 &
++
++      +s*(92.0384803181851755d0 &
++
++      +s*(37.0164914112791209d0 &
++
++      +s*(7.88500950271420583d0 &
++
++      +s)))))))
++
++  elseif(x(i,j,k).lt.2.d0) then
++
++      t=0.5d0*x(i,j,k)
++
++      fd=(3531.50360568243046d0 &
++
++      +t*(6077.5339658420037d0 &
++
++      +t*(6199.7700433981326d0 &
++
++      +t*(4412.78701919567594d0 &
++
++      +t*(2252.27343092810898d0 &
++
++      +t*(811.84098649224085d0 &
++
++      +t*(191.836401053637121d0 &
++
++      +t*23.2881838959183802d0 &
++
++      )))))))/(3293.83702584796268d0 &
++
++      +t*(1528.97474029789098d0 &
++
++      +t*(2568.48562814986046d0 &
++
++      +t*(925.64264653555825d0 &
++
++      +t*(574.23248354035988d0 &
++
++      +t*(132.803859320667262d0 &
++
++      +t*(29.8447166552102115d0 &
++
++      +t)))))))
++
++  elseif(x(i,j,k).lt.5.d0) then
++
++      t=0.3333333333333333333d0*(x(i,j,k)-2.d0)
++
++      fd=(4060.70753404118265d0 &
++
++      +t*(10812.7291333052766d0 &
++
++      +t*(13897.5649482242583d0 &
++
++      +t*(10628.4749852740029d0 &
++
++      +t*(5107.70670190679021d0 &
++
++      +t*(1540.84330126003381d0 &
++
++      +t*(284.452720112970331d0 &
++
++      +t*29.5214417358484151d0 &
++
++      )))))))/(1564.58195612633534d0 &
++
++      +t*(2825.75172277850406d0 &
++
++      +t*(3189.16066169981562d0 &
++
++      +t*(1955.03979069032571d0 &
++
++      +t*(828.000333691814748d0 &
++
++      +t*(181.498111089518376d0 &
++
++      +t*(32.0352857794803750d0 &
++
++      +t)))))))
++
++  elseif(x(i,j,k).lt.10.d0) then
++
++      t=0.2d0*x(i,j,k)-1.d0
++
++      fd=(1198.41719029557508d0 &
++
++      +t*(3263.51454554908654d0 &
++
++      +t*(3874.97588471376487d0 &
++
++      +t*(2623.13060317199813d0 &
++
++      +t*(1100.41355637121217d0 &
++
++      +t*(267.469532490503605d0 &
++
++      +t*(25.4207671812718340d0 &
++
++      +t*0.389887754234555773d0 &
++
++      )))))))/(273.407957792556998d0 &
++
++      +t*(595.918318952058643d0 &
++
++      +t*(605.202452261660849d0 &
++
++      +t*(343.183302735619981d0 &
++
++      +t*(122.187622015695729d0 &
++
++      +t*(20.9016359079855933d0 &
++
++      +t))))))
++
++  elseif(x(i,j,k).lt.20.d0) then
++
++      t=0.1d0*x(i,j,k)-1.d0
++
++      fd=(9446.00169435237637d0 &
++
++      +t*(36843.4448474028632d0 &
++
++      +t*(63710.1115419926191d0 &
++
++      +t*(62985.2197361074768d0 &
++
++      +t*(37634.5231395700921d0 &
++
++      +t*(12810.9898627807754d0 &
++
++      +t*(1981.56896138920963d0 &
++
++      +t*81.4930171897667580d0 &
++
++      )))))))/(1500.04697810133666d0 &
++
++      +t*(5086.91381052794059d0 &
++
++      +t*(7730.01593747621895d0 &
++
++      +t*(6640.83376239360596d0 &
++
++      +t*(3338.99590300826393d0 &
++
++      +t*(860.499043886802984d0 &
++
++      +t*(78.8565824186926692d0 &
++
++      +t)))))))
++
++  elseif(x(i,j,k).lt.40.d0) then
++
++      t=0.05d0*x(i,j,k)-1.d0
++
++      fd=(22977.9657855367223d0 &
++
++      +t*(123416.616813887781d0 &
++
++      +t*(261153.765172355107d0 &
++
++      +t*(274618.894514095795d0 &
++
++      +t*(149710.718389924860d0 &
++
++      +t*(40129.3371700184546d0 &
++
++      +t*(4470.46495881415076d0 &
++
++      +t*132.684346831002976d0 &
++
++      )))))))/(2571.68842525335676d0 &
++
++      +t*(12521.4982290775358d0 &
++
++      +t*(23268.1574325055341d0 &
++
++      +t*(20477.2320119758141d0 &
++
++      +t*(8726.52577962268114d0 &
++
++      +t*(1647.42896896769909d0 &
++
++      +t*(106.475275142076623d0 &
++
++      +t)))))))
++
++  else
++
++      w=1.d0/(x(i,j,k)*x(i,j,k))
++
++      t=1600.d0*w
++
++      fd=sqrt(x(i,j,k))*factor*(1.d0 &
++
++      -w*(0.411233516712009968d0 &
++
++      +t*(0.00110980410034088951d0 &
++
++      +t*(0.0000113689298990173683d0 &
++
++      +t*(2.56931790679436797d-7 &
++
++      +t*(9.97897786755446178d-9 &
++
++      +t*8.67667698791108582d-10))))))
++
++  endif
++
++  !write(*,"(a20,1p2e15.7)") "(fdm1h) t,fd=",t,fd
++
++  Imh(i,j,k)=fd
++
++  ENDDO
++  ENDDO
++  ENDDO
++
++END SUBROUTINE FDINTEGRALmh
++
++subroutine qagi ( f, bound, inf, epsabs, epsrel, result, abserr, neval, ier )
++
++!*****************************************************************************80
++!
++!! QAGI estimates an integral over a semi-infinite or infinite interval.
++!
++!  Discussion:
++!
++!    The routine calculates an approximation RESULT to a definite integral
++!      I = integral of F over (A, +Infinity),
++!    or
++!      I = integral of F over (-Infinity,A)
++!    or
++!      I = integral of F over (-Infinity,+Infinity),
++!    hopefully satisfying
++!      || I - RESULT || <= max ( EPSABS, EPSREL * ||I|| ).
++!
++!  Author:
++!
++!    Robert Piessens, Elise de Doncker-Kapenger,
++!    Christian Ueberhuber, David Kahaner
++!
++!  Reference:
++!
++!    Robert Piessens, Elise de Doncker-Kapenger,
++!    Christian Ueberhuber, David Kahaner,
++!    QUADPACK, a Subroutine Package for Automatic Integration,
++!    Springer Verlag, 1983
++!
++!  Parameters:
++!
++!    Input, external real F, the name of the function routine, of the form
++!      function f ( x )
++!      real f
++!      real x
++!    which evaluates the integrand function.
++!
++!    Input, real BOUND, the value of the finite endpoint of the integration
++!    range, if any, that is, if INF is 1 or -1.
++!
++!    Input, integer INF, indicates the type of integration range.
++!    1:  (  BOUND,    +Infinity),
++!    -1: ( -Infinity,  BOUND),
++!    2:  ( -Infinity, +Infinity).
++!
++!    Input, real EPSABS, EPSREL, the absolute and relative accuracy requested.
++!
++!    Output, real RESULT, the estimated value of the integral.
++!
++!    Output, real ABSERR, an estimate of || I - RESULT ||.
++!
++!    Output, integer NEVAL, the number of times the integral was evaluated.
++!
++!    Output, integer IER, error indicator.
++!    0, normal and reliable termination of the routine.  It is assumed that
++!      the requested accuracy has been achieved.
++!    > 0,  abnormal termination of the routine.  The estimates for result
++!      and error are less reliable.  It is assumed that the requested
++!      accuracy has not been achieved.
++!    1, maximum number of subdivisions allowed has been achieved.  One can
++!      allow more subdivisions by increasing the data value of LIMIT in QAGI
++!      (and taking the according dimension adjustments into account).
++!      However, if this yields no improvement it is advised to analyze the
++!      integrand in order to determine the integration difficulties.  If the
++!      position of a local difficulty can be determined (e.g. singularity,
++!      discontinuity within the interval) one will probably gain from
++!      splitting up the interval at this point and calling the integrator
++!      on the subranges.  If possible, an appropriate special-purpose
++!      integrator should be used, which is designed for handling the type
++!      of difficulty involved.
++!    2, the occurrence of roundoff error is detected, which prevents the
++!      requested tolerance from being achieved.  The error may be
++!      under-estimated.
++!    3, extremely bad integrand behavior occurs at some points of the
++!      integration interval.
++!    4, the algorithm does not converge.  Roundoff error is detected in the
++!      extrapolation table.  It is assumed that the requested tolerance
++!      cannot be achieved, and that the returned result is the best which
++!      can be obtained.
++!    5, the integral is probably divergent, or slowly convergent.  It must
++!      be noted that divergence can occur with any other value of IER.
++!    6, the input is invalid, because INF /= 1 and INF /= -1 and INF /= 2, or
++!      epsabs < 0 and epsrel < 0.  result, abserr, neval are set to zero.
++!
++!  Local parameters:
++!
++!            the dimension of rlist2 is determined by the value of
++!            limexp in QEXTR.
++!
++!           alist     - list of left end points of all subintervals
++!                       considered up to now
++!           blist     - list of right end points of all subintervals
++!                       considered up to now
++!           rlist(i)  - approximation to the integral over
++!                       (alist(i),blist(i))
++!           rlist2    - array of dimension at least (limexp+2),
++!                       containing the part of the epsilon table
++!                       which is still needed for further computations
++!           elist(i)  - error estimate applying to rlist(i)
++!           maxerr    - pointer to the interval with largest error
++!                       estimate
++!           errmax    - elist(maxerr)
++!           erlast    - error on the interval currently subdivided
++!                       (before that subdivision has taken place)
++!           area      - sum of the integrals over the subintervals
++!           errsum    - sum of the errors over the subintervals
++!           errbnd    - requested accuracy max(epsabs,epsrel*
++!                       abs(result))
++!           *****1    - variable for the left subinterval
++!           *****2    - variable for the right subinterval
++!           last      - index for subdivision
++!           nres      - number of calls to the extrapolation routine
++!           numrl2    - number of elements currently in rlist2. if an
++!                       appropriate approximation to the compounded
++!                       integral has been obtained, it is put in
++!                       rlist2(numrl2) after numrl2 has been increased
++!                       by one.
++!           small     - length of the smallest interval considered up
++!                       to now, multiplied by 1.5
++!           erlarg    - sum of the errors over the intervals larger
++!                       than the smallest interval considered up to now
++!           extrap    - logical variable denoting that the routine
++!                       is attempting to perform extrapolation. i.e.
++!                       before subdividing the smallest interval we
++!                       try to decrease the value of erlarg.
++!           noext     - logical variable denoting that extrapolation
++!                       is no longer allowed (true-value)
++!
++  implicit none
++
++  integer, parameter :: limit = 500
++
++  real abseps
++  real abserr
++  real alist(limit)
++  real area
++  real area1
++  real area12
++  real area2
++  real a1
++  real a2
++  real blist(limit)
++  real boun
++  real bound
++  real b1
++  real b2
++  real correc
++  real defabs
++  real defab1
++  real defab2
++  real dres
++  real elist(limit)
++  real epsabs
++  real epsrel
++  real erlarg
++  real erlast
++  real errbnd
++  real errmax
++  real error1
++  real error2
++  real erro12
++  real errsum
++  real ertest
++  logical extrap
++  real, external :: f
++  integer id
++  integer ier
++  integer ierro
++  integer inf
++  integer iord(limit)
++  integer iroff1
++  integer iroff2
++  integer iroff3
++  integer jupbnd
++  integer k
++  integer ksgn
++  integer ktmin
++  integer last
++  integer maxerr
++  integer neval
++  logical noext
++  integer nres
++  integer nrmax
++  integer numrl2
++  real resabs
++  real reseps
++  real result
++  real res3la(3)
++  real rlist(limit)
++  real rlist2(52)
++  real small
++!
++!  Test on validity of parameters.
++!
++  ier = 0
++  neval = 0
++  last = 0
++  result = 0.0e+00
++  abserr = 0.0e+00
++  alist(1) = 0.0e+00
++  blist(1) = 1.0e+00
++  rlist(1) = 0.0e+00
++  elist(1) = 0.0e+00
++  iord(1) = 0
++
++  if ( epsabs < 0.0e+00 .and. epsrel < 0.0e+00 ) then
++    ier = 6
++    return
++  end if
++!
++!  First approximation to the integral.
++!
++!  Determine the interval to be mapped onto (0,1).
++!  If INF = 2 the integral is computed as i = i1+i2, where
++!  i1 = integral of f over (-infinity,0),
++!  i2 = integral of f over (0,+infinity).
++!
++  if ( inf == 2 ) then
++    boun = 0.0e+00
++  else
++    boun = bound
++  end if
++
++  call qk15i ( f, boun, inf, 0.0e+00, 1.0e+00, result, abserr, defabs, resabs )
++!
++!  Test on accuracy.
++!
++  last = 1
++  rlist(1) = result
++  elist(1) = abserr
++  iord(1) = 1
++  dres = abs ( result )
++  errbnd = max ( epsabs, epsrel * dres )
++
++  if ( abserr <= 100.0E+00 * epsilon ( defabs ) * defabs .and. &
++    errbnd < abserr ) then
++    ier = 2
++  end if
++
++  if ( limit == 1 ) then
++    ier = 1
++  end if
++
++  if ( ier /= 0 .or. (abserr <= errbnd .and. abserr /= resabs ) .or. &
++    abserr == 0.0e+00 ) go to 130
++!
++!  Initialization.
++!
++  rlist2(1) = result
++  errmax = abserr
++  maxerr = 1
++  area = result
++  errsum = abserr
++  abserr = huge ( abserr )
++  nrmax = 1
++  nres = 0
++  ktmin = 0
++  numrl2 = 2
++  extrap = .false.
++  noext = .false.
++  ierro = 0
++  iroff1 = 0
++  iroff2 = 0
++  iroff3 = 0
++
++  if ( ( 1.0e+00 - 5.0e+01 * epsilon ( defabs ) ) * defabs <= dres ) then
++    ksgn = 1
++  else
++    ksgn = -1
++  end if
++
++  do last = 2, limit
++!
++!  Bisect the subinterval with nrmax-th largest error estimate.
++!
++    a1 = alist(maxerr)
++    b1 = 5.0e-01 * ( alist(maxerr) + blist(maxerr) )
++    a2 = b1
++    b2 = blist(maxerr)
++    erlast = errmax
++    call qk15i ( f, boun, inf, a1, b1, area1, error1, resabs, defab1 )
++    call qk15i ( f, boun, inf, a2, b2, area2, error2, resabs, defab2 )
++!
++!  Improve previous approximations to integral and error
++!  and test for accuracy.
++!
++    area12 = area1 + area2
++    erro12 = error1 + error2
++    errsum = errsum + erro12 - errmax
++    area = area + area12 - rlist(maxerr)
++
++    if ( defab1 /= error1 .and. defab2 /= error2 ) then
++
++      if ( abs ( rlist(maxerr) - area12 ) <= 1.0e-05 * abs ( area12 ) &
++        .and. 9.9e-01 * errmax <= erro12 ) then
++
++        if ( extrap ) then
++          iroff2 = iroff2 + 1
++        end if
++
++        if ( .not. extrap ) then
++          iroff1 = iroff1 + 1
++        end if
++
++      end if
++
++      if ( 10 < last .and. errmax < erro12 ) then
++        iroff3 = iroff3 + 1
++      end if
++
++    end if
++
++    rlist(maxerr) = area1
++    rlist(last) = area2
++    errbnd = max ( epsabs, epsrel * abs ( area ) )
++!
++!  Test for roundoff error and eventually set error flag.
++!
++    if ( 10 <= iroff1 + iroff2 .or. 20 <= iroff3 ) then
++      ier = 2
++    end if
++
++    if ( 5 <= iroff2 ) then
++      ierro = 3
++    end if
++!
++!  Set error flag in the case that the number of subintervals equals LIMIT.
++!
++    if ( last == limit ) then
++      ier = 1
++    end if
++!
++!  Set error flag in the case of bad integrand behavior
++!  at some points of the integration range.
++!
++    if ( max ( abs(a1), abs(b2) ) <= (1.0e+00 + 1.0e+03 * epsilon ( a1 ) ) * &
++    ( abs(a2) + 1.0e+03 * tiny ( a2 ) )) then
++      ier = 4
++    end if
++!
++!  Append the newly-created intervals to the list.
++!
++    if ( error2 <= error1 ) then
++      alist(last) = a2
++      blist(maxerr) = b1
++      blist(last) = b2
++      elist(maxerr) = error1
++      elist(last) = error2
++    else
++      alist(maxerr) = a2
++      alist(last) = a1
++      blist(last) = b1
++      rlist(maxerr) = area2
++      rlist(last) = area1
++      elist(maxerr) = error2
++      elist(last) = error1
++    end if
++!
++!  Call QSORT to maintain the descending ordering
++!  in the list of error estimates and select the subinterval
++!  with NRMAX-th largest error estimate (to be bisected next).
++!
++    call qsort ( limit, last, maxerr, errmax, elist, iord, nrmax )
++
++    if ( errsum <= errbnd ) go to 115
++
++    if ( ier /= 0 ) then
++      exit
++    end if
++
++    if ( last == 2 ) then
++      small = 3.75e-01
++      erlarg = errsum
++      ertest = errbnd
++      rlist2(2) = area
++      cycle
++    end if
++
++    if ( noext ) then
++      cycle
++    end if
++
++    erlarg = erlarg - erlast
++
++    if ( small < abs ( b1 - a1 ) ) then
++      erlarg = erlarg + erro12
++    end if
++!
++!  Test whether the interval to be bisected next is the
++!  smallest interval.
++!
++    if ( .not. extrap ) then
++
++      if ( small < abs ( blist(maxerr) - alist(maxerr) ) ) then
++        cycle
++      end if
++
++      extrap = .true.
++      nrmax = 2
++
++    end if
++
++    if ( ierro == 3 .or. erlarg <= ertest ) then
++      go to 60
++    end if
++!
++!  The smallest interval has the largest error.
++!  before bisecting decrease the sum of the errors over the
++!  larger intervals (erlarg) and perform extrapolation.
++!
++    id = nrmax
++    jupbnd = last
++
++    if ( (2+limit/2) < last ) then
++      jupbnd = limit + 3 - last
++    end if
++
++    do k = id, jupbnd
++      maxerr = iord(nrmax)
++      errmax = elist(maxerr)
++      if ( small < abs ( blist(maxerr) - alist(maxerr) ) ) then
++        go to 90
++      end if
++      nrmax = nrmax + 1
++    end do
++!
++!  Extrapolate.
++!
++60  continue
++
++    numrl2 = numrl2 + 1
++    rlist2(numrl2) = area
++    call qextr ( numrl2, rlist2, reseps, abseps, res3la, nres )
++    ktmin = ktmin+1
++
++    if ( 5 < ktmin .and. abserr < 1.0e-03 * errsum ) then
++      ier = 5
++    end if
++
++    if ( abseps < abserr ) then
++
++      ktmin = 0
++      abserr = abseps
++      result = reseps
++      correc = erlarg
++      ertest = max ( epsabs, epsrel * abs(reseps) )
++
++      if ( abserr <= ertest ) then
++        exit
++      end if
++
++    end if
++!
++!  Prepare bisection of the smallest interval.
++!
++    if ( numrl2 == 1 ) then
++      noext = .true.
++    end if
++
++    if ( ier == 5 ) then
++      exit
++    end if
++
++    maxerr = iord(1)
++    errmax = elist(maxerr)
++    nrmax = 1
++    extrap = .false.
++    small = small * 5.0e-01
++    erlarg = errsum
++
++90  continue
++
++  end do
++!
++!  Set final result and error estimate.
++!
++  if ( abserr == huge ( abserr ) ) then
++    go to 115
++  end if
++
++  if ( ( ier + ierro ) == 0 ) then
++    go to 110
++  end if
++
++  if ( ierro == 3 ) then
++    abserr = abserr + correc
++  end if
++
++  if ( ier == 0 ) then
++    ier = 3
++  end if
++
++  if ( result /= 0.0e+00 .and. area /= 0.0e+00) then
++    go to 105
++  end if
++
++  if ( errsum < abserr ) then
++    go to 115
++  end if
++
++  if ( area == 0.0e+00 ) then
++    go to 130
++  end if
++
++  go to 110
++
++105 continue
++
++  if ( errsum / abs ( area ) < abserr / abs ( result )  ) then
++    go to 115
++  end if
++!
++!  Test on divergence
++!
++110 continue
++
++  if ( ksgn == (-1) .and. &
++  max ( abs(result), abs(area) ) <=  defabs * 1.0e-02) go to 130
++
++  if ( 1.0e-02 > (result/area) .or. &
++    (result/area) > 1.0e+02 .or. &
++    errsum > abs(area)) then
++    ier = 6
++  end if
++
++  go to 130
++!
++!  Compute global integral sum.
++!
++  115 continue
++
++  result = sum ( rlist(1:last) )
++
++  abserr = errsum
++  130 continue
++
++  neval = 30 * last - 15
++  if ( inf == 2 ) then
++    neval = 2 * neval
++  end if
++
++  if ( 2 < ier ) then
++    ier = ier - 1
++  end if
++
++  return
++end
++
++subroutine qk15i ( f, boun, inf, a, b, result, abserr, resabs, resasc )
++
++!*****************************************************************************80
++!
++!! QK15I applies a 15 point Gauss-Kronrod quadrature on an infinite interval.
++!
++!  Discussion:
++!
++!    The original infinite integration range is mapped onto the interval
++!    (0,1) and (a,b) is a part of (0,1).  The routine then computes:
++!
++!    i = integral of transformed integrand over (a,b),
++!    j = integral of abs(transformed integrand) over (a,b).
++!
++!  Author:
++!
++!    Robert Piessens, Elise de Doncker-Kapenger,
++!    Christian Ueberhuber, David Kahaner
++!
++!  Reference:
++!
++!    Robert Piessens, Elise de Doncker-Kapenger,
++!    Christian Ueberhuber, David Kahaner,
++!    QUADPACK, a Subroutine Package for Automatic Integration,
++!    Springer Verlag, 1983
++!
++!  Parameters:
++!
++!    Input, external real F, the name of the function routine, of the form
++!      function f ( x )
++!      real f
++!      real x
++!    which evaluates the integrand function.
++!
++!    Input, real BOUN, the finite bound of the original integration range,
++!    or zero if INF is 2.
++!
++!    Input, integer INF, indicates the type of the interval.
++!    -1: the original interval is (-infinity,BOUN),
++!    +1, the original interval is (BOUN,+infinity),
++!    +2, the original interval is (-infinity,+infinity) and
++!    the integral is computed as the sum of two integrals, one
++!    over (-infinity,0) and one over (0,+infinity).
++!
++!    Input, real A, B, the limits of integration, over a subrange of [0,1].
++!
++!    Output, real RESULT, the estimated value of the integral.
++!    RESULT is computed by applying the 15-point Kronrod rule (RESK) obtained
++!    by optimal addition of abscissae to the 7-point Gauss rule (RESG).
++!
++!    Output, real ABSERR, an estimate of | I - RESULT |.
++!
++!    Output, real RESABS, approximation to the integral of the absolute
++!    value of F.
++!
++!    Output, real RESASC, approximation to the integral of the
++!    transformated integrand | F-I/(B-A) | over [A,B].
++!
++!  Local Parameters:
++!
++!           centr  - mid point of the interval
++!           hlgth  - half-length of the interval
++!           absc*  - abscissa
++!           tabsc* - transformed abscissa
++!           fval*  - function value
++!           resg   - result of the 7-point Gauss formula
++!           resk   - result of the 15-point Kronrod formula
++!           reskh  - approximation to the mean value of the transformed
++!                    integrand over (a,b), i.e. to i/(b-a)
++!
++  implicit none
+ 
++  real a
++  real absc
++  real absc1
++  real absc2
++  real abserr
++  real b
++  real boun
++  real centr
++  real dinf
++  real, external :: f
++  real fc
++  real fsum
++  real fval1
++  real fval2
++  real fv1(7)
++  real fv2(7)
++  real hlgth
++  integer inf
++  integer j
++  real resabs
++  real resasc
++  real resg
++  real resk
++  real reskh
++  real result
++  real tabsc1
++  real tabsc2
++  real wg(8)
++  real wgk(8)
++  real xgk(8)
++!
++!  the abscissae and weights are supplied for the interval
++!  (-1,1).  because of symmetry only the positive abscissae and
++!  their corresponding weights are given.
++!
++!           xgk    - abscissae of the 15-point Kronrod rule
++!                    xgk(2), xgk(4), ... abscissae of the 7-point Gauss
++!                    rule
++!                    xgk(1), xgk(3), ...  abscissae which are optimally
++!                    added to the 7-point Gauss rule
++!
++!           wgk    - weights of the 15-point Kronrod rule
++!
++!           wg     - weights of the 7-point Gauss rule, corresponding
++!                    to the abscissae xgk(2), xgk(4), ...
++!                    wg(1), wg(3), ... are set to zero.
++!
++  data xgk(1),xgk(2),xgk(3),xgk(4),xgk(5),xgk(6),xgk(7),xgk(8)/ &
++       9.914553711208126e-01,     9.491079123427585e-01, &
++       8.648644233597691e-01,     7.415311855993944e-01, &
++       5.860872354676911e-01,     4.058451513773972e-01, &
++       2.077849550078985e-01,     0.0000000000000000e+00/
++
++  data wgk(1),wgk(2),wgk(3),wgk(4),wgk(5),wgk(6),wgk(7),wgk(8)/ &
++       2.293532201052922e-02,     6.309209262997855e-02, &
++       1.047900103222502e-01,     1.406532597155259e-01, &
++       1.690047266392679e-01,     1.903505780647854e-01, &
++       2.044329400752989e-01,     2.094821410847278e-01/
++
++  data wg(1),wg(2),wg(3),wg(4),wg(5),wg(6),wg(7),wg(8)/ &
++       0.0000000000000000e+00,     1.294849661688697e-01, &
++       0.0000000000000000e+00,     2.797053914892767e-01, &
++       0.0000000000000000e+00,     3.818300505051189e-01, &
++       0.0000000000000000e+00,     4.179591836734694e-01/
++
++  dinf = min ( 1, inf )
++
++  centr = 5.0e-01*(a+b)
++  hlgth = 5.0e-01*(b-a)
++  tabsc1 = boun+dinf*(1.0e+00-centr)/centr
++  fval1 = f(tabsc1)
++  if ( inf == 2 ) fval1 = fval1+f(-tabsc1)
++  fc = (fval1/centr)/centr
++!
++!  Compute the 15-point Kronrod approximation to the integral,
++!  and estimate the error.
++!
++  resg = wg(8)*fc
++  resk = wgk(8)*fc
++  resabs = abs(resk)
++
++  do j = 1, 7
++
++    absc = hlgth*xgk(j)
++    absc1 = centr-absc
++    absc2 = centr+absc
++    tabsc1 = boun+dinf*(1.0e+00-absc1)/absc1
++    tabsc2 = boun+dinf*(1.0e+00-absc2)/absc2
++    fval1 = f(tabsc1)
++    fval2 = f(tabsc2)
++
++    if ( inf == 2 ) then
++      fval1 = fval1+f(-tabsc1)
++      fval2 = fval2+f(-tabsc2)
++    end if
++
++    fval1 = (fval1/absc1)/absc1
++    fval2 = (fval2/absc2)/absc2
++    fv1(j) = fval1
++    fv2(j) = fval2
++    fsum = fval1+fval2
++    resg = resg+wg(j)*fsum
++    resk = resk+wgk(j)*fsum
++    resabs = resabs+wgk(j)*(abs(fval1)+abs(fval2))
++  end do
++
++  reskh = resk * 5.0e-01
++  resasc = wgk(8) * abs(fc-reskh)
++
++  do j = 1, 7
++    resasc = resasc + wgk(j)*(abs(fv1(j)-reskh)+abs(fv2(j)-reskh))
++  end do
++
++  result = resk * hlgth
++  resasc = resasc * hlgth
++  resabs = resabs * hlgth
++  abserr = abs ( ( resk - resg ) * hlgth )
++
++  if ( resasc /= 0.0e+00.and.abserr /= 0.0e+00) then
++    abserr = resasc* min ( 1.0e+00,(2.0e+02*abserr/resasc)**1.5e+00)
++  end if
++
++  if ( resabs > tiny ( resabs ) / ( 5.0e+01 * epsilon ( resabs ) ) ) then
++    abserr = max (( epsilon ( resabs ) *5.0e+01)*resabs,abserr)
++  end if
++
++  return
++end
++
++subroutine qsort ( limit, last, maxerr, ermax, elist, iord, nrmax )
+ 
++!*****************************************************************************80
++!
++!! QSORT maintains the order of a list of local error estimates.
++!
++!  Discussion:
++!
++!    This routine maintains the descending ordering in the list of the
++!    local error estimates resulting from the interval subdivision process.
++!    At each call two error estimates are inserted using the sequential
++!    search top-down for the largest error estimate and bottom-up for the
++!    smallest error estimate.
++!
++!  Author:
++!
++!    Robert Piessens, Elise de Doncker-Kapenger,
++!    Christian Ueberhuber, David Kahaner
++!
++!  Reference:
++!
++!    Robert Piessens, Elise de Doncker-Kapenger,
++!    Christian Ueberhuber, David Kahaner,
++!    QUADPACK, a Subroutine Package for Automatic Integration,
++!    Springer Verlag, 1983
++!
++!  Parameters:
++!
++!    Input, integer LIMIT, the maximum number of error estimates the list can
++!    contain.
++!
++!    Input, integer LAST, the current number of error estimates.
++!
++!    Input/output, integer MAXERR, the index in the list of the NRMAX-th
++!    largest error.
++!
++!    Output, real ERMAX, the NRMAX-th largest error = ELIST(MAXERR).
++!
++!    Input, real ELIST(LIMIT), contains the error estimates.
++!
++!    Input/output, integer IORD(LAST).  The first K elements contain
++!    pointers to the error estimates such that ELIST(IORD(1)) through
++!    ELIST(IORD(K)) form a decreasing sequence, with
++!      K = LAST
++!    if
++!      LAST <= (LIMIT/2+2),
++!    and otherwise
++!      K = LIMIT+1-LAST.
++!
++!    Input/output, integer NRMAX.
++!
++  implicit none
++
++  integer last
++
++  real elist(last)
++  real ermax
++  real errmax
++  real errmin
++  integer i
++  integer ibeg
++  integer iord(last)
++  integer isucc
++  integer j
++  integer jbnd
++  integer jupbn
++  integer k
++  integer limit
++  integer maxerr
++  integer nrmax
++!
++!  Check whether the list contains more than two error estimates.
++!
++  if ( last <= 2 ) then
++    iord(1) = 1
++    iord(2) = 2
++    go to 90
++  end if
++!
++!  This part of the routine is only executed if, due to a
++!  difficult integrand, subdivision increased the error
++!  estimate. in the normal case the insert procedure should
++!  start after the nrmax-th largest error estimate.
++!
++  errmax = elist(maxerr)
++
++  do i = 1, nrmax-1
++
++    isucc = iord(nrmax-1)
++
++    if ( errmax <= elist(isucc) ) then
++      exit
++    end if
++
++    iord(nrmax) = isucc
++    nrmax = nrmax-1
++
++  end do
++!
++!  Compute the number of elements in the list to be maintained
++!  in descending order.  This number depends on the number of
++!  subdivisions still allowed.
++!
++  jupbn = last
++
++  if ( (limit/2+2) < last ) then
++    jupbn = limit+3-last
++  end if
++
++  errmin = elist(last)
++!
++!  Insert errmax by traversing the list top-down, starting
++!  comparison from the element elist(iord(nrmax+1)).
++!
++  jbnd = jupbn-1
++  ibeg = nrmax+1
++
++  do i = ibeg, jbnd
++    isucc = iord(i)
++    if ( elist(isucc) <= errmax ) then
++      go to 60
++    end if
++    iord(i-1) = isucc
++  end do
++
++  iord(jbnd) = maxerr
++  iord(jupbn) = last
++  go to 90
++!
++!  Insert errmin by traversing the list bottom-up.
++!
++60 continue
++
++  iord(i-1) = maxerr
++  k = jbnd
++
++  do j = i, jbnd
++    isucc = iord(k)
++    if ( errmin < elist(isucc) ) then
++      go to 80
++    end if
++    iord(k+1) = isucc
++    k = k-1
++  end do
++
++  iord(i) = last
++  go to 90
++
++80 continue
++
++  iord(k+1) = last
++!
++!  Set maxerr and ermax.
++!
++90 continue
++
++  maxerr = iord(nrmax)
++  ermax = elist(maxerr)
++
++  return
++end
++
++subroutine qextr ( n, epstab, result, abserr, res3la, nres )
++
++!*****************************************************************************80
++!
++!! QEXTR carries out the Epsilon extrapolation algorithm.
++!
++!  Discussion:
++!
++!    The routine determines the limit of a given sequence of approximations,
++!    by means of the epsilon algorithm of P. Wynn.  An estimate of the
++!    absolute error is also given.  The condensed epsilon table is computed.
++!    Only those elements needed for the computation of the next diagonal
++!    are preserved.
++!
++!  Author:
++!
++!    Robert Piessens, Elise de Doncker-Kapenger,
++!    Christian Ueberhuber, David Kahaner
++!
++!  Reference:
++!
++!    Robert Piessens, Elise de Doncker-Kapenger,
++!    Christian Ueberhuber, David Kahaner,
++!    QUADPACK, a Subroutine Package for Automatic Integration,
++!    Springer Verlag, 1983
++!
++!  Parameters:
++!
++!    Input, integer N, indicates the entry of EPSTAB which contains
++!    the new element in the first column of the epsilon table.
++!
++!    Input/output, real EPSTAB(52), the two lower diagonals of the triangular
++!    epsilon table.  The elements are numbered starting at the right-hand
++!    corner of the triangle.
++!
++!    Output, real RESULT, the estimated value of the integral.
++!
++!    Output, real ABSERR, estimate of the absolute error computed from
++!    RESULT and the 3 previous results.
++!
++!    ?, real RES3LA(3), the last 3 results.
++!
++!    Input/output, integer NRES, the number of calls to the routine.  This
++!    should be zero on the first call, and is automatically updated
++!    before return.
++!
++!  Local Parameters:
++!
++!           e0     - the 4 elements on which the
++!           e1       computation of a new element in
++!           e2       the epsilon table is based
++!           e3                 e0
++!                        e3    e1    new
++!                              e2
++!           newelm - number of elements to be computed in the new
++!                    diagonal
++!           error  - error = abs(e1-e0)+abs(e2-e1)+abs(new-e2)
++!           result - the element in the new diagonal with least value
++!                    of error
++!           limexp is the maximum number of elements the epsilon table
++!           can contain. if this number is reached, the upper diagonal
++!           of the epsilon table is deleted.
++!
++  implicit none
++
++  real abserr
++  real delta1
++  real delta2
++  real delta3
++  real epsinf
++  real epstab(52)
++  real error
++  real err1
++  real err2
++  real err3
++  real e0
++  real e1
++  real e1abs
++  real e2
++  real e3
++  integer i
++  integer ib
++  integer ib2
++  integer ie
++  integer indx
++  integer k1
++  integer k2
++  integer k3
++  integer limexp
++  integer n
++  integer newelm
++  integer nres
++  integer num
++  real res
++  real result
++  real res3la(3)
++  real ss
++  real tol1
++  real tol2
++  real tol3
++
++  nres = nres+1
++  abserr = huge ( abserr )
++  result = epstab(n)
++
++  if ( n < 3 ) then
++    abserr = max ( abserr,0.5e+00* epsilon ( result ) *abs(result))
++    return
++  end if
++
++  limexp = 50
++  epstab(n+2) = epstab(n)
++  newelm = (n-1)/2
++  epstab(n) = huge ( epstab(n) )
++  num = n
++  k1 = n
++
++  do i = 1, newelm
++
++    k2 = k1-1
++    k3 = k1-2
++    res = epstab(k1+2)
++    e0 = epstab(k3)
++    e1 = epstab(k2)
++    e2 = res
++    e1abs = abs(e1)
++    delta2 = e2-e1
++    err2 = abs(delta2)
++    tol2 = max ( abs(e2),e1abs)* epsilon ( e2 )
++    delta3 = e1-e0
++    err3 = abs(delta3)
++    tol3 = max ( e1abs,abs(e0))* epsilon ( e0 )
++!
++!  If e0, e1 and e2 are equal to within machine accuracy, convergence
++!  is assumed.
++!
++    if ( err2 <= tol2 .and. err3 <= tol3 ) then
++      result = res
++      abserr = err2+err3
++      abserr = max ( abserr,0.5e+00* epsilon ( result ) *abs(result))
++      return
++    end if
++
++    e3 = epstab(k1)
++    epstab(k1) = e1
++    delta1 = e1-e3
++    err1 = abs(delta1)
++    tol1 = max ( e1abs,abs(e3))* epsilon ( e3 )
++!
++!  If two elements are very close to each other, omit a part
++!  of the table by adjusting the value of N.
++!
++    if ( err1 <= tol1 .or. err2 <= tol2 .or. err3 <= tol3 ) go to 20
++
++    ss = 1.0e+00/delta1+1.0e+00/delta2-1.0e+00/delta3
++    epsinf = abs ( ss*e1 )
++!
++!  Test to detect irregular behavior in the table, and
++!  eventually omit a part of the table adjusting the value of N.
++!
++    if ( epsinf > 1.0e-04 ) go to 30
++
++20  continue
++
++    n = i+i-1
++    exit
++!
++!  Compute a new element and eventually adjust the value of RESULT.
++!
++30  continue
++
++    res = e1+1.0e+00/ss
++    epstab(k1) = res
++    k1 = k1-2
++    error = err2+abs(res-e2)+err3
++
++    if ( error <= abserr ) then
++      abserr = error
++      result = res
++    end if
++
++  end do
++!
++!  Shift the table.
++!
++  if ( n == limexp ) then
++    n = 2*(limexp/2)-1
++  end if
++
++  if ( (num/2)*2 == num ) then
++    ib = 2
++  else
++    ib = 1
++  end if
++
++  ie = newelm+1
++
++  do i = 1, ie
++    ib2 = ib+2
++    epstab(ib) = epstab(ib2)
++    ib = ib2
++  end do
++
++  if ( num /= n ) then
++
++    indx = num-n+1
++
++    do i = 1, n
++      epstab(i)= epstab(indx)
++      indx = indx+1
++    end do
++
++  end if
++
++  if ( nres < 4 ) then
++    res3la(nres) = result
++    abserr = huge ( abserr )
++  else
++    abserr = abs(result-res3la(3))+abs(result-res3la(2)) &
++      +abs(result-res3la(1))
++    res3la(1) = res3la(2)
++    res3la(2) = res3la(3)
++    res3la(3) = result
++  end if
++
++  abserr = max ( abserr,0.5e+00* epsilon ( result ) *abs(result))
++
++  return
++end
++! <-- TWY
+ 
+ SUBROUTINE FillWT_RestartFrom_GSpace(kernelFile, kernel, qNorm)
+ !------------------------------------------------------------------------------
+diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/ReadInputFile.f90 OFQE2.0.1_patched/PROFESS3.0m5/Source/ReadInputFile.f90
+--- OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/ReadInputFile.f90	2019-05-28 09:28:22.000000000 +0100
++++ OFQE2.0.1_patched/PROFESS3.0m5/Source/ReadInputFile.f90	2022-03-14 16:04:37.261507563 +0000
+@@ -124,7 +124,7 @@
+   USE RhoOptimizers, ONLY: tole
+   USE RhoOptimizers, ONLY: usePreconditioner
+   USE RhoOptimizers, ONLY: cheatPot
+-  USE RhoOptimizers, ONLY: fixedmag 
++  USE RhoOptimizers, ONLY: fixedmag
+ 
+   USE RhoDirCG, ONLY: cg_alg
+   USE RhoDirBFGS, ONLY : MBFGS ! parameter for lbfgs method
+@@ -892,121 +892,126 @@
+ 
+ ! 07 SEP 2015: old GGA functionals:
+           CASE("HVWTF","TFMUVW") ! TGGA: TTF+mu*hVW
+-            kinetic = 1013 
++            kinetic = 1013
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : TTF+mu*hVW'
+           CASE("TMC01","KST2") ! TGGA: TMCPBE2=KST2
+-            kinetic = 1014 
++            kinetic = 1014
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : KST2'
+           CASE("TGG01","PBETWF") ! TGGA: TPBETW
+-            kinetic = 1015 
++            kinetic = 1015
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : PBETWF'
+ 
+           CASE("TAPBE","APBEF") ! APBEK
+-            kinetic = 1047 
++            kinetic = 1047
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : APBEF'
+ 
+-! 
++!
+           CASE("VT84F","VT84FN") ! new implementation of VT84F
+             kinetic = 1101
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : VT84F'
+-          CASE("VT84GN") ! 
++          CASE("VT84GN") !
+             kinetic = 1102
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : VT84GN'
+-          CASE("TVTPBE") ! 
++          CASE("TVTPBE") !
+             kinetic = 1103
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : TVTPBE'
+-          CASE("TWKST2") ! 
++          CASE("TWKST2") !
+             kinetic = 1104
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : TWKST2'
+-          CASE("TVT04M","VT84FM") ! 
++          CASE("TVT04M","VT84FM") !
+             kinetic = 1105
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : VT84Fm'
+-          CASE("MUKST2") ! 
++          CASE("MUKST2") !
+             kinetic = 1106
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : muKST2'
+-          CASE("MUVT84") ! 
++          CASE("MUVT84") !
+             kinetic = 1107
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : muVT84F'
+-          CASE("CMVT84") ! 
++          CASE("CMVT84") !
+             kinetic = 1108
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : CmuVT84F'
+ ! DEC 2014
+-          CASE("P0910C") ! 
++          CASE("P0910C") !
+             kinetic = 1109
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : P0910C'
+ ! Feb 2015
+-          CASE("P92") ! 
++          CASE("P92") !
+             kinetic = 1110
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : P92'
+-          CASE("E00") ! 
++          CASE("E00") !
+             kinetic = 1111
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : E00'
+           CASE("PBE2") !  same as TMC01 or KST2, but different implementation
+             kinetic = 1112
+             WRITE(message, *) '(input) Non-interacting Free-Energy     : PBE2'
+ ! MAY 2015
+-          CASE("MUP64A","P64PR1") ! Pade[04,06] vers. A 
++          CASE("MUP64A","P64PR1") ! Pade[04,06] vers. A
+             kinetic = 1113
+-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64A" 
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64A"
+             !CALL WrtOut(6,message)
+           CASE("MUP64B","P64PR2") ! Pade[04,06] vers. B
+             kinetic = 1114
+-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64B" 
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64B"
+             !CALL WrtOut(6,message)
+           CASE("MUP64C","P654P3") ! Pade[04,06] vers. C
+             kinetic = 1115
+-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64C" 
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64C"
+             !CALL WrtOut(6,message)
+ ! JUNE 2015
+           CASE("VT84F1") ! VT84F with C1=mu - tunable parameter
+             kinetic = 1116
+-            WRITE(message, *) "(input) Non-interacting Free-Energy     : VT84F1" 
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : VT84F1"
+             !CALL WrtOut(6,message)
+           CASE("MUP64D","P64PR3") ! Pade[04,06] vers. D
+             kinetic = 1117
+-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64D" 
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64D"
+             !CALL WrtOut(6,message)
+           CASE("PAD2PA") ! Pade[04,06] vers. D
+             kinetic = 1118
+-            WRITE(message, *) "(input) Non-interacting Free-Energy     : PAD2PA" 
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : PAD2PA"
+             !CALL WrtOut(6,message)
+           CASE("PAD2PB") ! Pade[04,06] vers. D
+             kinetic = 1119
+-            WRITE(message, *) "(input) Non-interacting Free-Energy     : PAD2PB" 
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : PAD2PB"
+             !CALL WrtOut(6,message)
+           CASE("MUP64F") ! Pade[04,06] vers. D
+             kinetic = 1120
+-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64F" 
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64F"
+             !CALL WrtOut(6,message)
+-          CASE("MUP42A","P42PR2") ! Pade[04,06] vers. A 
++          CASE("MUP42A","P42PR2") ! Pade[04,06] vers. A
+             kinetic = 1121
+-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP42A" 
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP42A"
+             !CALL WrtOut(6,message)
+           CASE("MUP64G","P64PR4") ! Pade[04,06] vers. D
+             kinetic = 1122
+-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64G" 
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64G"
+             !CALL WrtOut(6,message)
+           CASE("MUP64H") ! Pade[04,06] vers. H
+             kinetic = 1123
+-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64H" 
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64H"
+             !CALL WrtOut(6,message)
+           CASE("MUP42B") ! Pade[04,02] vers. B
+             kinetic = 1124
+-            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP42B" 
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP42B"
+             !CALL WrtOut(6,message)
+           CASE("MUP64I") ! Pade[04,06] vers. I
+             kinetic = 1125
+             WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64I"
+             !CALL WrtOut(6,message)
+ ! <-- VVK END
++! --> TWY ADDED: APR 2021: Temperature dependent non-local non-interacting free-energy functionals
++          CASE("SDF") ! Sjostrom & Daligault non-local functional
++            kinetic = 1200
++            WRITE(message, *) "(input) Non-interacting Free-Energy     : SDF"
++! <-- TWY END
+         CASE DEFAULT
+           WRITE(message,*) 'Warning: Encountered unknown KINE argument ', TRIM(option)
+-          CALL Error(6,message) 
++          CALL Error(6,message)
+         END SELECT
+         CALL WrtOut(6,message)
+ 
+       !-----------------------------------------------------------------------------
+-      ! 22) Set the kinetic energy functional parameters.     
++      ! 22) Set the kinetic energy functional parameters.
+       CASE("PARA")
+         READ(inputUnit, *, IOSTAT=fileStatus) keyword, option, tempReal
+         IF (fileStatus/=0) THEN
+diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/Report.f90 OFQE2.0.1_patched/PROFESS3.0m5/Source/Report.f90
+--- OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/Report.f90	2019-05-28 09:28:22.000000000 +0100
++++ OFQE2.0.1_patched/PROFESS3.0m5/Source/Report.f90	2022-03-14 16:04:51.171321561 +0000
+@@ -428,6 +428,10 @@
+       WRITE(outputUnit, 172) "Coefficient b4=lambda: ", lambda
+       WRITE(outputUnit, 172) "Coefficient a6=nu: ", nu
+       WRITE(outputUnit, 172) "Coefficient a5=nu2: ", nu2
++
++
++    CASE(1200)
++      WRITE(outputUnit, 12) "Free-Energy Functional: SDF"
+   END SELECT
+ 
+ ! XC or X+C functional:
+@@ -597,7 +601,14 @@
+     WRITE(outputUnit,10) "TTF1: Kin Energy", eVenergy(2)+eVenergy(12), energyTime(2) !Ekin=Fkin+TS
+     WRITE(outputUnit,10) "TTF1: T*S Energy", eVenergy(12),energyTime(12)
+   ENDIF
+-
++  ! --> TWY ADDED
++  IF (kinetic == 1200) THEN
++    WRITE(outputUnit,10) "Non-interacting free energy", eVenergy(2), energyTime(2)
++    WRITE(outputUnit,10) "Thomas-Fermi free energy", eVenergy(7), energyTime(7)
++    WRITE(outputUnit,10) "Von-Weizsacker free energy",  eVenergy(8), energyTime(8)
++    WRITE(outputUnit,10) "Non-local free energy", eVenergy(9), energyTime(9)
++  ENDIF
++  ! <-- TWY END
+   ! Print out Exchange Correlation Energy
+   IF (exchangeCorrelationFunct == 1) &
+     WRITE(outputUnit,10) "LDA Exch-Corr Energy", eVenergy(5), &
+diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/SetupKEDF.f90 OFQE2.0.1_patched/PROFESS3.0m5/Source/SetupKEDF.f90
+--- OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/SetupKEDF.f90	2019-05-28 09:28:22.000000000 +0100
++++ OFQE2.0.1_patched/PROFESS3.0m5/Source/SetupKEDF.f90	2022-03-14 16:05:03.084327219 +0000
+@@ -90,7 +90,7 @@
+   USE KEDF_TF, ONLY: lambda
+   USE KEDF_VW, ONLY: mu
+   USE KEDF_WTkernel, ONLY: alpha, beta
+-  USE KEDF_WTkernel, ONLY: keKernel 
++  USE KEDF_WTkernel, ONLY: keKernel, keKernelB
+   USE KEDF_WGCkernel, ONLY: firstOrderWGC
+   USE KEDF_WGCkernel, ONLY: gamma
+   USE KEDF_WGCkernel, ONLY: alpha5
+@@ -601,12 +601,36 @@
+     WRITE(logUnit,'(A,F10.4)') " Coefficient for TTF Fs is ", lambda
+   CASE(1013:1125) !new TGGAPotentialPlus implementation, we do nothing so far
+ ! <-- VVK
++! --> TWY
++  CASE(1200) ! Sjostrom & Daligault functional
++    IF (rho0>0._DP) THEN
++      hold0 = .TRUE. ! This should be redundant but one cannot be too careful.
++    ELSE
++      rho0 = cell%numEle/cell%vol
++    END IF
++
++    ! Periodic Boundary Condition
++    ! the pre-FFT array, before padding, is saved for convolutions.
++    ALLOCATE(keKernel(k1G, k2G, k3G,1), stat=fileStatus)
++
++    IF (fileStatus/=0) THEN
++      WRITE(message,*)'Error allocating the non-local kernel table. Leaving.'
++      CALL Error(6, message)
++    END IF
++
++    ALLOCATE(keKernelB(k1G, k2G, k3G), stat=fileStatus)
++
++    IF (fileStatus/=0) THEN
++      WRITE(message,*)'Error allocating the non-local vW kernel table. Leaving.'
++      CALL Error(6, message)
++    END IF
++! <-- TWY
+   CASE DEFAULT ! By default we do nothing.
+-    
+-    WRITE(message,*) "SetupFunctional: Please check your type of KEDF, ", kinetic 
++
++    WRITE(message,*) "SetupFunctional: Please check your type of KEDF, ", kinetic
+     CALL QUIT(message)
+ 
+-  END SELECT 
++  END SELECT
+ 
+   RETURN
+ 
+@@ -656,20 +680,25 @@
+   CALL FillQTable(cell%cellRecip)
+ 
+   SELECT CASE(kinetic)
+-    ! 4: WT, 17: EVT 
++    ! 4: WT, 17: EVT
+     CASE(4,17)
+-      IF (.NOT.hold0) rho0 = tmpRho 
++      IF (.NOT.hold0) rho0 = tmpRho
+       CALL FillWT()
+     ! 5: WGC, 12: WGCD, 18: EVC
+     CASE(5,12,18)
+-      IF (.NOT.hold0) rho0 = tmpRho 
+-      IF (.NOT.holdS) rhoS = mrhos * tmpRho 
++      IF (.NOT.hold0) rho0 = tmpRho
++      IF (.NOT.holdS) rhoS = mrhos * tmpRho
+       CALL FillWGC()
+     ! 10: CAT
+     CASE(10)
+-      IF (.NOT.hold0) rho0 = tmpRho 
+-      IF (.NOT.holdS) rhoS = tmpRho 
++      IF (.NOT.hold0) rho0 = tmpRho
++      IF (.NOT.holdS) rhoS = tmpRho
+       CALL FillCAT()
++    ! --> TWY
++    CASE(1200)
++      IF (.NOT.hold0) rho0 = tmpRho
++      CALL FillWT()
++    ! <-- TWY
+   END SELECT
+ 
+   CALL StopClock('KEDFRefresh')

@@ -18,7 +18,7 @@ MODULE Report
 !
 ! CONDITIONS AND ASSUMPTIONS:
 !
-! FUTURE OPTIMIZATIONS AND IMPROVEMENTS: 
+! FUTURE OPTIMIZATIONS AND IMPROVEMENTS:
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
@@ -49,11 +49,11 @@ SUBROUTINE ReportHeader(systemName, numProc, outUnit) !VVK
 ! DESCRIPTION:
 !   This subroutine prints out the header information in the output file when
 !   the run first begins.
-!  
-! CONDITIONS AND ASSUMPTIONS: This should only be called by the head node 0, 
+!
+! CONDITIONS AND ASSUMPTIONS: This should only be called by the head node 0,
 !   since that's the only node with knowledge of the output files.
 !
-! FUTURE OPTIMIZATIONS AND IMPROVEMENTS: 
+! FUTURE OPTIMIZATIONS AND IMPROVEMENTS:
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
@@ -77,10 +77,10 @@ SUBROUTINE ReportHeader(systemName, numProc, outUnit) !VVK
 
                        !>> EXTERNAL VARIABLES <<!
 
-  CHARACTER(LEN=*), INTENT(IN) :: systemName  
-  ! The raw argument on the command line     
+  CHARACTER(LEN=*), INTENT(IN) :: systemName
+  ! The raw argument on the command line
   !
-  INTEGER, INTENT(IN) :: numProc              
+  INTEGER, INTENT(IN) :: numProc
   ! Total number of processes
   !
   INTEGER, INTENT(IN) :: outUnit
@@ -88,7 +88,7 @@ SUBROUTINE ReportHeader(systemName, numProc, outUnit) !VVK
   !
 
                        !>> INTERNAL VARIABLES <<!
-  
+
   CHARACTER(LEN=10) :: date
   ! Stores the date
   !
@@ -120,22 +120,22 @@ SUBROUTINE ReportHeader(systemName, numProc, outUnit) !VVK
                        !>> FUNCTION BODY <<!
 
   headnode: IF (outputRank==0) THEN
-  CALL DATE_AND_TIME(date, time)  
+  CALL DATE_AND_TIME(date, time)
 
   ! Print the header
   !WRITE(outUnit,*) " "
   WRITE(outUnit, 11) REPEAT("*", lineLength)
 
   !VVK commented
-  !WRITE(outUnit, 11) REPEAT("*", (lineLength - 44)/2) // & 
-  !                      "   ORBITAL-FREE DENSITY FUNCTIONAL THEORY   " // & 
+  !WRITE(outUnit, 11) REPEAT("*", (lineLength - 44)/2) // &
+  !                      "   ORBITAL-FREE DENSITY FUNCTIONAL THEORY   " // &
   !                      REPEAT("*", (lineLength - 44)/2)
   !WRITE(outUnit, 11) REPEAT("*", lineLength)
   WRITE(outputUnit, 12) "PROFESS/Profess@Quantum-Espresso v3.0m5@5.2.1 OCT 2015 (QTP/UF)" !VVK
   WRITE(outUnit, 11) REPEAT("*", lineLength) !VVK
 
   WRITE(outUnit, 12) "Run started on: " // date(5:6) // "/" // &
-                        date(7:8) // "/" // date(1:4) // " at " // & 
+                        date(7:8) // "/" // date(1:4) // " at " // &
                         time(1:2)// ":" // time(3:4) // ":" // time(5:6) // " "
   WRITE(outUnit, 12) " System Name: " // systemName // &
                         REPEAT(" ", MAX(lineLength - LEN(systemName),0))
@@ -152,9 +152,9 @@ SUBROUTINE ReportHeader(systemName, numProc, outUnit) !VVK
   WRITE(outUnit, 14) "2nd Cell Lattice Vector (A):", cell%cellReal(:,2)*bohr
   WRITE(outUnit, 14) "3rd Cell Lattice Vector (A):", cell%cellReal(:,3)*bohr
   WRITE(outUnit, 12) " "
-  WRITE(outUnit, 12) "Boundary Conditions for 1st Lattice Dir.: Periodic" 
-  WRITE(outUnit, 12) "Boundary Conditions for 2nd Lattice Dir.: Periodic" 
-  WRITE(outUnit, 12) "Boundary Conditions for 3rd Lattice Dir.: Periodic" 
+  WRITE(outUnit, 12) "Boundary Conditions for 1st Lattice Dir.: Periodic"
+  WRITE(outUnit, 12) "Boundary Conditions for 2nd Lattice Dir.: Periodic"
+  WRITE(outUnit, 12) "Boundary Conditions for 3rd Lattice Dir.: Periodic"
   WRITE(outUnit, 12) " "
 
   WRITE(outUnit, 12) REPEAT(" ", (linelength - 30)/2) // &
@@ -177,7 +177,7 @@ SUBROUTINE ReportHeader(systemName, numProc, outUnit) !VVK
   WRITE(outUnit, 16) "# Gridpoints Along 2nd Lattice Dir.: ", SIZE(rhoR, 2)
 
 #ifdef __USE_PARALLEL
-  WRITE(outUnit, 16) "# Gridpoints Along 3rd Lattice Dir.: ", m3G 
+  WRITE(outUnit, 16) "# Gridpoints Along 3rd Lattice Dir.: ", m3G
 #else
   WRITE(outUnit, 16) "# Gridpoints Along 3rd Lattice Dir.: ", SIZE(rhoR,3)
 #endif
@@ -428,6 +428,10 @@ SUBROUTINE ReportHeader(systemName, numProc, outUnit) !VVK
       WRITE(outputUnit, 172) "Coefficient b4=lambda: ", lambda
       WRITE(outputUnit, 172) "Coefficient a6=nu: ", nu
       WRITE(outputUnit, 172) "Coefficient a5=nu2: ", nu2
+
+
+    CASE(1200)
+      WRITE(outputUnit, 12) "Free-Energy Functional: SDF"
   END SELECT
 
 ! XC or X+C functional:
@@ -517,10 +521,10 @@ SUBROUTINE ReportAnswers(energy, title)
   IMPLICIT NONE
 
                        !>> EXTERNAL VARIABLES <<!
-  ! Table of energies. From left to right: total energy, kinetic, external, 
-  ! coulombic, exchange-correlation, ion-ion, Thomas-Fermi, von Weiszacker and 
+  ! Table of energies. From left to right: total energy, kinetic, external,
+  ! coulombic, exchange-correlation, ion-ion, Thomas-Fermi, von Weiszacker and
   ! third term Wang-Teter, WGC, ...)
-  REAL(kind=DP), DIMENSION(:), INTENT(IN) :: energy          
+  REAL(kind=DP), DIMENSION(:), INTENT(IN) :: energy
   !
   CHARACTER(len=*) , INTENT(IN) :: title
   ! The title of this output, max 60 characters
@@ -531,14 +535,14 @@ SUBROUTINE ReportAnswers(energy, title)
   INTEGER :: titleLength
   ! The length of the title, in the # of characters
   !
-  INTEGER :: titleOffset     
-  ! 1 if there is the titleLen is an odd number, 0 if it's 
+  INTEGER :: titleOffset
+  ! 1 if there is the titleLen is an odd number, 0 if it's
   !
   REAL(kind=DP), DIMENSION(21) :: eVenergy = 0.0_DP !VVK: changed 9 --> 11 ! MAY 2011: 11-->13
                                    ! VVK: APR 2012: 13--> 21 (just in case to
                                    ! VVK: have an opportunity to output different
                                    ! VVK: components of total free-energy
-  ! final energies expressed in eV   
+  ! final energies expressed in eV
   !
 
 
@@ -552,10 +556,10 @@ SUBROUTINE ReportAnswers(energy, title)
   11 FORMAT(A)
   12 FORMAT("#", A76, "#")
   13 FORMAT("# ", A24, " =", 1X, ES20.12, " eV", 25X, "#")
-                      
+
                        !>> FUNCTION BODY <<!
   ! Print the header
-  
+
   WRITE(outputUnit, 11) REPEAT("#", lineLength)
 
   WRITE(outputUnit,11) &
@@ -575,10 +579,10 @@ SUBROUTINE ReportAnswers(energy, title)
     WRITE(outputUnit,10) "Wang-Teter Kinetic Energy",  eVenergy(9), energyTime(9)
   IF (kinetic == 5) &
     WRITE(outputUnit,10) "WGC Kinetic Energy",  eVenergy(9), energyTime(9)
-  IF (kinetic == 7) & 
-    WRITE(outputUnit,10) "LQ Kinetic Energy",  eVenergy(9), energyTime(9) 
-  IF (kinetic == 8) & 
-    WRITE(outputUnit,10) "HQ Kinetic Energy",  eVenergy(9), energyTime(9) 
+  IF (kinetic == 7) &
+    WRITE(outputUnit,10) "LQ Kinetic Energy",  eVenergy(9), energyTime(9)
+  IF (kinetic == 8) &
+    WRITE(outputUnit,10) "HQ Kinetic Energy",  eVenergy(9), energyTime(9)
   WRITE(outputUnit, 12) " "
 ! --> VVK Added
 ! VVK: energyTime below has to be fixed
@@ -597,7 +601,14 @@ SUBROUTINE ReportAnswers(energy, title)
     WRITE(outputUnit,10) "TTF1: Kin Energy", eVenergy(2)+eVenergy(12), energyTime(2) !Ekin=Fkin+TS
     WRITE(outputUnit,10) "TTF1: T*S Energy", eVenergy(12),energyTime(12)
   ENDIF
-
+  ! --> TWY ADDED
+  IF (kinetic == 1200) THEN
+    WRITE(outputUnit,10) "Non-interacting free energy", eVenergy(2), energyTime(2)
+    WRITE(outputUnit,10) "Thomas-Fermi free energy", eVenergy(7), energyTime(7)
+    WRITE(outputUnit,10) "Von-Weizsacker free energy",  eVenergy(8), energyTime(8)
+    WRITE(outputUnit,10) "Non-local free energy", eVenergy(9), energyTime(9)
+  ENDIF
+  ! <-- TWY END
   ! Print out Exchange Correlation Energy
   IF (exchangeCorrelationFunct == 1) &
     WRITE(outputUnit,10) "LDA Exch-Corr Energy", eVenergy(5), &
@@ -670,7 +681,7 @@ SUBROUTINE ReportAnswers(energy, title)
 
     WRITE(outputUnit,13) "TOTAL ENERGY", eVenergy(1)
   ENDIF
-! <-- VVK END 
+! <-- VVK END
 
   ! Print the footer
   WRITE(outputUnit, 11) REPEAT("#", lineLength)
@@ -698,7 +709,7 @@ SUBROUTINE MinimizerReportHeader
 #ifdef __FFTW2 !--> VVK
   USE Fourier_2, ONLY: iCountFFT
 #else
-  USE FOURIER, ONLY : iCountFFT  
+  USE FOURIER, ONLY : iCountFFT
 #endif         !<-- VVK
   IMPLICIT NONE
 
@@ -722,9 +733,9 @@ SUBROUTINE MinimizerReportHeader
     ! Print the header
 
 ! VVK OUTPUT commented
-    !WRITE(outputUnit,*) 
+    !WRITE(outputUnit,*)
     WRITE(outputUnit,11) "+" // REPEAT("-", lineLength-2) // "+" !VVK | --> +
- 
+
     SELECT CASE (outputRhoMethod)
 
 !--> VVK method ouputs below are fixed, see ReadInputFile.f90
@@ -833,8 +844,8 @@ SUBROUTINE MinimizerReportSteps(step, energy, potentialNorm, numEnergyLine, &
 #ifdef __FFTW2 !--> VVK
   USE Fourier_2, ONLY: iCountFFT
 #else
-  USE FOURIER, ONLY : iCountFFT  
-#endif         !<-- VVK   
+  USE FOURIER, ONLY : iCountFFT
+#endif         !<-- VVK
   ! Cumulative FFT counter for tracking.
   !
 
@@ -843,17 +854,17 @@ SUBROUTINE MinimizerReportSteps(step, energy, potentialNorm, numEnergyLine, &
                        !>> EXTERNAL VARIABLES <<!
 
   REAL(KIND=DP), DIMENSION(:), INTENT(IN) :: energy
-  ! Table of energies. From left to right: total energy, kinetic, external, 
-  ! coulombic, exchange-correlation, ion-ion, Thomas-Fermi, 
+  ! Table of energies. From left to right: total energy, kinetic, external,
+  ! coulombic, exchange-correlation, ion-ion, Thomas-Fermi,
   ! von Weiszacker and third term Wang-Teter, WGC, ...)
 
   INTEGER, INTENT(IN) :: &
     step, &          ! The step number of the minimizer
     numEnergyLine, & ! The number of times the energy was evaluated in the
                      ! total line minimization part
-    numEnergyBrack, &! The numberof times the energy was evaluated for 
+    numEnergyBrack, &! The numberof times the energy was evaluated for
                      ! the bracketing step.
-    success          ! 1 if the line minimizer from the last step 
+    success          ! 1 if the line minimizer from the last step
                      ! successfully found a minima.
                      ! 2 if the line minimizer went to max timestep
                      ! 3 if it it discovered increasing energy at small step
@@ -865,7 +876,7 @@ SUBROUTINE MinimizerReportSteps(step, energy, potentialNorm, numEnergyLine, &
   REAL(KIND=DP), INTENT(IN) :: duration
   ! Total time spent in the minimizer subroutine.
   !
-  REAL(KIND=DP), INTENT(IN) :: potentialNorm    
+  REAL(KIND=DP), INTENT(IN) :: potentialNorm
   ! The norm of the potential
   !
 
@@ -933,7 +944,7 @@ SUBROUTINE MinimizerReportFooter(steps, cause, energy, numEnergyEvals, numPotent
 ! DESCRIPTION:
 !   This subroutine gets called when an electronic energy minimization is done
 !   and it prints out status information about what happened.
-!  
+!
 ! CONDITIONS AND ASSUMPTIONS:
 !
 ! FUTURE OPTIMIZATIONS AND IMPROVEMENTS:
@@ -952,8 +963,8 @@ SUBROUTINE MinimizerReportFooter(steps, cause, energy, numEnergyEvals, numPotent
                        !>> EXTERNAL VARIABLES <<!
 
   REAL(KIND=DP), DIMENSION(:), INTENT(IN) :: energy
-  ! Table of energies. From left to right: total energy, kinetic, external, 
-  ! coulombic, exchange-correlation, ion-ion, Thomas-Fermi, von Weiszacker & 
+  ! Table of energies. From left to right: total energy, kinetic, external,
+  ! coulombic, exchange-correlation, ion-ion, Thomas-Fermi, von Weiszacker &
   ! third term Wang-Teter, WGC, ...)
 
   INTEGER, INTENT(IN) :: &
@@ -962,7 +973,7 @@ SUBROUTINE MinimizerReportFooter(steps, cause, energy, numEnergyEvals, numPotent
     numEnergyEvals, & ! Total number of times the energy has been evaluated
     numPotentialEvals ! Total number of times potential has been evaluated
 
-  REAL(KIND=DP), INTENT(IN) :: duration     
+  REAL(KIND=DP), INTENT(IN) :: duration
   ! Total time spent in the minimizer subroutine.
 
                     !>> INTERNAL VARIABLES <<!
@@ -989,7 +1000,7 @@ SUBROUTINE MinimizerReportFooter(steps, cause, energy, numEnergyEvals, numPotent
   END IF
 
   IF (outputMinimizeDensity >= 1) THEN
-    WRITE(outputUnit, 10) " "  
+    WRITE(outputUnit, 10) " "
     SELECT CASE (cause)
       CASE (0)
         WRITE(outputUnit,10) "Stationary point found!  "
@@ -1007,12 +1018,12 @@ SUBROUTINE MinimizerReportFooter(steps, cause, energy, numEnergyEvals, numPotent
         WRITE(outputUnit,10) "** Breakdown occured! **" ! VVK: 10 JAN 2016
     END SELECT
 
-! --> VVK ADDED 
+! --> VVK ADDED
     WRITE(outputUnit,10) ""
     !WRITE(outputUnit,17) "Rho(min), Rho(max):",MINVAL(rhoR),MAXVAL(rhoR) ! VVK:
-    !July 2015: not sure why, but that gives me same values of MINVAL(rhoR) and 
+    !July 2015: not sure why, but that gives me same values of MINVAL(rhoR) and
     !MAXVAL(rhoR), perhaps it is because rhoR does not have the final value of
-    !rho, just the initial uniform density. 
+    !rho, just the initial uniform density.
                        WRITE(outputUnit,17) "Rho(min), Rho(max):",rhomin,rhomax
                        WRITE(outputUnit,17) " s2(min),  s2(max):",s2min,s2max
     if(p1max.gt.0.d0)  WRITE(outputUnit,17) " p1(min),  p1(max):",p1min,p1max
@@ -1071,7 +1082,7 @@ SUBROUTINE GeometryMinimizerReportHeader(extraInfo)
 
                       !>> EXTERNAL VARIABLES <<!
 
-   CHARACTER (LEN=*), INTENT(IN), OPTIONAL :: extraInfo      
+   CHARACTER (LEN=*), INTENT(IN), OPTIONAL :: extraInfo
    ! Line of information added to the header
 
                       !>> INTERNAL VARIABLES <<!
@@ -1086,11 +1097,11 @@ SUBROUTINE GeometryMinimizerReportHeader(extraInfo)
     ! Print the header
     WRITE(outputUnit,*)
     WRITE(outputUnit,11) "[" // REPEAT("-", lineLength-2) // "]"
-    
+
     ! IonMethod 0 (NON): No optimization.
     ! IonMethod 2 (QUI): Quickmin optimization method.
     ! IonMethod 3 (CON): CG method.
-    ! IonMethod 4 (CG2): CG method version 2. 
+    ! IonMethod 4 (CG2): CG method version 2.
     ! IonMethod 5 (BFG): BFGS method.
     SELECT CASE(outputIonMethod)
       CASE(2)
@@ -1123,13 +1134,13 @@ SUBROUTINE GeometryMinimizerReportHeader(extraInfo)
     IF(outputMinimizeGeometry >= 2) THEN
       IF (outputIonMethod > 6) THEN
         WRITE(outputUnit,11) "[ Step     MaxForce       MaxStep  " // &
-          "    Hamiltonian   Temperature       Time  ]" 
+          "    Hamiltonian   Temperature       Time  ]"
         WRITE(outputUnit,11) "[   #       (eV/A)          (A)    " // &
           "       (eV)            (K)          (s)   ]"
         WRITE(outputUnit,11) "[" // REPEAT("-", lineLength-2) // "]"
       ELSE
         WRITE(outputUnit,11) "[ Step     MaxForce     Time Step  " // &
-          "Velocity   Overstep?                Time  ]" 
+          "Velocity   Overstep?                Time  ]"
         WRITE(outputUnit,11) "[   #       (eV/A)                 " // &
           "                                     (s)  ]"
         WRITE(outputUnit,11) "[" // REPEAT("-", lineLength-2) // "]"
@@ -1165,29 +1176,29 @@ SUBROUTINE GeometryMinimizerReportSteps(step, duration, forces, maxForce, &
   IMPLICIT NONE
 
                        !>> EXTERNAL VARIABLES <<!
-  INTEGER, INTENT(IN) :: step 
+  INTEGER, INTENT(IN) :: step
   ! The step number of the minimizer
   !
-  REAL(KIND=DP), DIMENSION(:,:,:), INTENT(IN) :: forces 
+  REAL(KIND=DP), DIMENSION(:,:,:), INTENT(IN) :: forces
   ! forces for this step
   !
-  REAL(KIND=DP), DIMENSION(:,:), INTENT(IN), OPTIONAL :: positions 
+  REAL(KIND=DP), DIMENSION(:,:), INTENT(IN), OPTIONAL :: positions
   ! atom positions for this step
   !
-  REAL(KIND=DP), INTENT(IN) :: duration 
+  REAL(KIND=DP), INTENT(IN) :: duration
   ! Total time spent in the minimizer subroutine.
   !
-  REAL(KIND=DP), INTENT(IN) :: maxForce 
+  REAL(KIND=DP), INTENT(IN) :: maxForce
   ! Maximum value of the forces
   !
   REAL(KIND=DP), INTENT(IN) :: stepSize
   !
   REAL(KIND=DP), INTENT(IN) :: velocityMag
   !
-  LOGICAL, INTENT(IN) :: overStep 
+  LOGICAL, INTENT(IN) :: overStep
   ! means the energy is higher than previous step
   !
-  LOGICAL, INTENT(IN) :: stepDone 
+  LOGICAL, INTENT(IN) :: stepDone
   ! means this step decrease the energy
   !
   LOGICAL :: cellRelaxFlag = .FALSE.
@@ -1227,7 +1238,7 @@ SUBROUTINE GeometryMinimizerReportSteps(step, duration, forces, maxForce, &
     END IF
     WRITE(outputUnit, 11) " "
   ENDIF
-  
+
   IF(outputMinimizeGeometry >= 5) THEN
     CALL ReportAnswers(energy, "Energy Report")
     WRITE(outputUnit, 11) " "
@@ -1235,7 +1246,7 @@ SUBROUTINE GeometryMinimizerReportSteps(step, duration, forces, maxForce, &
 
   ! Save ion positions / geometry
   IF(PRESENT(positions) .AND. geoOutputFreq>0 .AND. &
-     (step==1 .OR. MOD(step,geoOutputFreq)==0)) THEN 
+     (step==1 .OR. MOD(step,geoOutputFreq)==0)) THEN
     IF(rankGlobal==0) THEN ! mohan add 2013-07-24
 !      WRITE(outputUnit,*) " print the geometry, step is ", step
       CALL PrintGeometry(cellRelaxFlag, step, positions)
@@ -1255,7 +1266,7 @@ SUBROUTINE GeometryMinimizerReportFooter(duration)
 ! DESCRIPTION:
 !   This subroutine gets called when a geometry minimization is done
 !   and it prints out status information about what happened.
-!  
+!
 ! CONDITIONS AND ASSUMPTIONS:
 !
 ! FUTURE OPTIMIZATIONS AND IMPROVEMENTS:
@@ -1285,7 +1296,7 @@ SUBROUTINE GeometryMinimizerReportFooter(duration)
                        !>> FUNCTION BODY <<!
 
   IF (outputMinimizeGeometry >= 1) THEN
-    WRITE(outputUnit, 10) " "  
+    WRITE(outputUnit, 10) " "
     WRITE(outputUnit,14) "Minimization time:", duration
     WRITE(outputUnit,11) "[" // REPEAT("-", lineLength-2) // "]"
   END IF
@@ -1303,7 +1314,7 @@ SUBROUTINE FinalizeOutput
 !
 ! CONDITIONS AND ASSUMPTIONS: Must be called by at least all processors
 !   containing non-padded density
-! 
+!
 ! FUTURE OPTIMIZATIONS AND IMPROVEMENTS:
 !
 !------------------------------------------------------------------------------
@@ -1318,11 +1329,11 @@ SUBROUTINE FinalizeOutput
 
   IMPLICIT NONE
                       !>> INTERNAL VARIABLES <<!
-  
-  CHARACTER(LEN=10) :: date          
+
+  CHARACTER(LEN=10) :: date
   ! Stores the date
   !
-  CHARACTER(LEN=10) :: time               
+  CHARACTER(LEN=10) :: time
   ! Stores the time
   !
 
@@ -1332,12 +1343,12 @@ SUBROUTINE FinalizeOutput
 
   ! Print out the final density
   IF (outputFinalDensity) THEN
-    ! add the core density into final density for 
+    ! add the core density into final density for
     ! density decomposition scheme.
     IF(do_den_dec==1) THEN
       CALL AddCoreDensity(rhoR)
     ENDIF
-    !WRITE(outputUnit,*) "Print out final density with charge ", SUM(rhoR)*cell%dV 
+    !WRITE(outputUnit,*) "Print out final density with charge ", SUM(rhoR)*cell%dV
     CALL PrintDensity(rhoR)
   END IF
 
@@ -1351,7 +1362,7 @@ SUBROUTINE FinalizeOutput
     ENDIF
 
     ! Print out the final stresses
-    IF (outputFinalStress .EQV. .TRUE.) THEN 
+    IF (outputFinalStress .EQV. .TRUE.) THEN
       CALL PrintStress(stress)
     ENDIF
 
@@ -1366,7 +1377,7 @@ SUBROUTINE FinalizeOutput
     CALL StopClock('PROFESS')
 
     ! whole clocks
-    CALL PrintClock(' ',outputUnit) 
+    CALL PrintClock(' ',outputUnit)
     ! some chosen clocks
     WRITE(outputUnit,*) "------------------------------- TOTAL ---------------------------------------"
     CALL PrintClockWith('PROFESS',outputUnit)
@@ -1385,7 +1396,7 @@ SUBROUTINE FinalizeOutput
     CALL DATE_AND_TIME(date, time)
 
     WRITE(outputUnit, '(/ A)') "Run completed on: " // date(5:6) // "/" // &
-                        date(7:8) // "/" // date(1:4) // " at " // & 
+                        date(7:8) // "/" // date(1:4) // " at " // &
                         time(1:2)// ":" // time(3:4) // ":" // time(5:6) // " "
     WRITE(outputUnit,*) " "
 
@@ -1412,4 +1423,3 @@ SUBROUTINE FinalizeOutput
 END SUBROUTINE FinalizeOutput
 
 END MODULE Report
-

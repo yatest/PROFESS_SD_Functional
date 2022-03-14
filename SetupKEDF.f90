@@ -2,7 +2,7 @@ MODULE SetupKEDF
 !------------------------------------------------------------------------------
 ! STRUCTURE OF MODULE:
 !   MODULE SetupKEDF
-!     |_SUBROUTINE SetupFunctional 
+!     |_SUBROUTINE SetupFunctional
 !
 ! DESCRIPTION:
 !
@@ -12,7 +12,7 @@ MODULE SetupKEDF
 !
 ! REFERENCES:
 !   1. Watson, S.C. and Carter, E.A.  "Linear-Scaling Parallel Algorithms for
-!      the First-Principles Treatment of Metals."  Computer Physics 
+!      the First-Principles Treatment of Metals."  Computer Physics
 !      Communications, 128 (2000) 67-92
 !
 !------------------------------------------------------------------------------
@@ -39,7 +39,7 @@ CONTAINS
 SUBROUTINE SetupFunctional
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-!   This subroutine takes the number of points on a real space grid, and 
+!   This subroutine takes the number of points on a real space grid, and
 !   initializes qTable, qMask, etc. and sets the FUNCTIONAL module to start
 !   working.  It must be run once per program execution.
 !
@@ -60,7 +60,7 @@ SUBROUTINE SetupFunctional
 !               (VLL)
 !   11/22/2003  Cosmetic Changes (Greg Ho)
 !   12/05/2003  Added the kernel table and the FillKernel call. (VLL)
-!   12/12/2003  Removed call to FillQTable, actually removed the whole 
+!   12/12/2003  Removed call to FillQTable, actually removed the whole
 !               procedure.  Replaced with a few lines of code. (GSH)
 !   01/08/2004  Renamed this procedure "SetupGridObjects" (GSH)
 !   03/23/2005  Added initialization for the Hybrid KEDF. (VLL)
@@ -75,8 +75,8 @@ SUBROUTINE SetupFunctional
   USE CellInfo, ONLY: m1G, m3G, n3Goff
   USE CellInfo, ONLY: n1G, n2G, n3G
 
-  USE IonElectronSpline, ONLY: iiSpline 
-  USE IonElectronSpline, ONLY: ieSpline 
+  USE IonElectronSpline, ONLY: iiSpline
+  USE IonElectronSpline, ONLY: ieSpline
   USE CBSpline, ONLY: FillB
   USE CBSpline, ONLY: splineOrder
   USE CBSpline, ONLY: bSpline1
@@ -90,7 +90,7 @@ SUBROUTINE SetupFunctional
   USE KEDF_TF, ONLY: lambda
   USE KEDF_VW, ONLY: mu
   USE KEDF_WTkernel, ONLY: alpha, beta
-  USE KEDF_WTkernel, ONLY: keKernel 
+  USE KEDF_WTkernel, ONLY: keKernel, keKernelB
   USE KEDF_WGCkernel, ONLY: firstOrderWGC
   USE KEDF_WGCkernel, ONLY: gamma
   USE KEDF_WGCkernel, ONLY: alpha5
@@ -108,8 +108,8 @@ SUBROUTINE SetupFunctional
 
   IMPLICIT NONE
 
-                       !>> INTERNAL VARIABLES <<! 
-  INTEGER :: fileStatus          
+                       !>> INTERNAL VARIABLES <<!
+  INTEGER :: fileStatus
   ! Checks that tables are allocated alright.
   !
   !
@@ -122,7 +122,7 @@ SUBROUTINE SetupFunctional
   CHARACTER(len=500) :: message
   !
 
-                           !>> INITIALIZATION <<!    
+                           !>> INITIALIZATION <<!
 
   IF(rankGlobal==0) THEN !VVK ADDED, 06 SEP 2015
   WRITE(logUnit,'(/A)' ) " ------------------------------------------------------------------------------"
@@ -136,7 +136,7 @@ SUBROUTINE SetupFunctional
                            !>> FUNCTION BODY <<!
 
   ! Allocate a bunch of memory
-  ! Periodic boundary condition, 
+  ! Periodic boundary condition,
   ! 'q' is plane wave
   ! qTable is for storing |q|,
   ! qVectors is for each q (q_x, q_y, q_z)
@@ -227,7 +227,7 @@ SUBROUTINE SetupFunctional
   CASE(4, 17) ! 4 is Wang-Teter, standard and custom response
               ! 17 is EvW based on Wang-Teter
     ! This is now lambda TF + mu vW + WT(alpha,beta).
-    IF (lambda<-99) lambda = 1.0_DP 
+    IF (lambda<-99) lambda = 1.0_DP
     IF (mu<-99) mu = 1.0_DP
 
     IF(rankGlobal==0) & !VVK ADDED, 06 SEP 2015
@@ -247,9 +247,9 @@ SUBROUTINE SetupFunctional
 
     IF(rankGlobal==0) THEN !VVK ADDED, 06 SEP 2015
     WRITE(logUnit,'(A,F10.4)') " Coefficient for alpha in WT KEDF is ", alpha
-    WRITE(logUnit,'(A,F10.4)') " Coefficient for beta  in WT KEDF is ", beta 
-    WRITE(logUnit,'(A,F10.4)') " rho0 (Electron/Bohr^3) in WGC KEDF is ", rho0 
-    WRITE(logUnit,*) "hold0 = ", hold0 
+    WRITE(logUnit,'(A,F10.4)') " Coefficient for beta  in WT KEDF is ", beta
+    WRITE(logUnit,'(A,F10.4)') " rho0 (Electron/Bohr^3) in WGC KEDF is ", rho0
+    WRITE(logUnit,*) "hold0 = ", hold0
     ENDIF !VVK ADDED, 06 SEP 2015
 
     ! Periodic Boundary Condition
@@ -259,7 +259,7 @@ SUBROUTINE SetupFunctional
     IF (fileStatus/=0) THEN
       WRITE(message,*)'Error allocating the WT kernel table. Leaving.'
       CALL Error(6, message)
-    END IF 
+    END IF
 
     IF (kloc<0._DP) kloc = 0._DP       ! for SC KEDF (Shin, mohan add 09-26-12)
     IF (aloc<0._DP) aloc = 0._DP       ! for SC KEDF (Shin, mohan add 09-26-12)
@@ -267,7 +267,7 @@ SUBROUTINE SetupFunctional
   CASE(5, 18) ! Wang-Govind-Carter mohan add 2013-07-31
   ! This is lamba * TF + mu * vW + WGC(alpha, beta, gamma).
     IF (lambda<-99) lambda = 1.0_DP
-    IF (mu<-99) mu = 1.0_DP 
+    IF (mu<-99) mu = 1.0_DP
     IF (firstOrderWGC==-100) THEN
       CALL WrtOut(6,'You have not specify the keyword of WGCT in your .inpt file')
       CALL WrtOut(6,'WGCT is a mandatory keyword, see manual for details')
@@ -292,7 +292,7 @@ SUBROUTINE SetupFunctional
     IF (fileStatus/=0) THEN
       WRITE(message,*)'Error allocating the WGC kernel table. Leaving.'
       CALL Error(6, message)
-    END IF 
+    END IF
 !
 
 !!
@@ -311,46 +311,46 @@ SUBROUTINE SetupFunctional
     ENDIF
 
     IF(rankGlobal==0) THEN !VVK ADDED, 06 SEP 2015
-    WRITE(logUnit,'(A,F10.4)') " Coefficient for alpha in WGC KEDF is ", alpha 
-    WRITE(logUnit,'(A,F10.4)') " Coefficient for beta  in WGC KEDF is ", beta 
+    WRITE(logUnit,'(A,F10.4)') " Coefficient for alpha in WGC KEDF is ", alpha
+    WRITE(logUnit,'(A,F10.4)') " Coefficient for beta  in WGC KEDF is ", beta
     WRITE(logUnit,'(A,F10.4)') " Coefficient for gamma in WGC KEDF is ", gamma
     ENDIF !VVK ADDED, 06 SEP 2015
-      
+
     IF (rho0>0._DP) THEN
       hold0 = .TRUE.
     ELSE
-      rho0 = cell%numEle/cell%vol 
+      rho0 = cell%numEle/cell%vol
     END IF
-    IF (rhoS>0._DP) THEN 
+    IF (rhoS>0._DP) THEN
       holdS = .TRUE.
     ELSE
       IF (holdS .EQV. .TRUE.) THEN
         rhoS = rho0
       ELSE
-        rhoS = cell%numEle/cell%vol 
+        rhoS = cell%numEle/cell%vol
       END IF
     END IF
 
     IF(rankGlobal==0) THEN !VVK ADDED, 06 SEP 2015
-    WRITE(logUnit,'(A,F10.4)') " rho0 (Electron/Bohr^3) in WGC KEDF is ", rho0 
-    WRITE(logUnit,'(A,F10.4)') " rhoS (Electron/Bohr^3) in WGC KEDF is ", rhoS 
-    WRITE(logUnit,*) "hold0 = ", hold0 
-    WRITE(logUnit,*) "holdS = ", holdS 
+    WRITE(logUnit,'(A,F10.4)') " rho0 (Electron/Bohr^3) in WGC KEDF is ", rho0
+    WRITE(logUnit,'(A,F10.4)') " rhoS (Electron/Bohr^3) in WGC KEDF is ", rhoS
+    WRITE(logUnit,*) "hold0 = ", hold0
+    WRITE(logUnit,*) "holdS = ", holdS
     ENDIF !VVK ADDED, 06 SEP 2015
 
     IF (kloc<0._DP) kloc = 0._DP       ! for SC KEDF (Shin, mohan add 09-26-12)
     IF (aloc<0._DP) aloc = 0._DP       ! for SC KEDF (Shin, mohan add 09-26-12)
 !------------------------------------------------------------------------------
-  CASE(7) ! LQ Functional (Jeng-Da Chai) 
-    lambda = 1._DP ! Making sure we get 1*TF+1*VW+LQ. 
-    mu = 1._DP 
-    ! At this point, if rho0 has not been set we have to do 
-    ! it assuming standard LQ calculation. 
-    IF (rho0>0._DP) THEN 
+  CASE(7) ! LQ Functional (Jeng-Da Chai)
+    lambda = 1._DP ! Making sure we get 1*TF+1*VW+LQ.
+    mu = 1._DP
+    ! At this point, if rho0 has not been set we have to do
+    ! it assuming standard LQ calculation.
+    IF (rho0>0._DP) THEN
       hold0 = .TRUE. ! This should be redundant but one cannot be too careful.
-    ELSE 
-      rho0 = cell%numEle/cell%vol 
-    END IF 
+    ELSE
+      rho0 = cell%numEle/cell%vol
+    END IF
 !------------------------------------------------------------------------------
   CASE(8) ! HQ Functional (Jeng-Da Chai)
     lambda = 1._DP ! Making sure we get 1*TF+1*VW+HQ.
@@ -359,9 +359,9 @@ SUBROUTINE SetupFunctional
     ! it assuming standard LQ calculation.
     IF (rho0>0._DP) THEN
       hold0 = .TRUE. ! This should be redundant but one cannot be too careful.
-    ELSE 
-      rho0 = cell%numEle/cell%vol 
-    END IF 
+    ELSE
+      rho0 = cell%numEle/cell%vol
+    END IF
 !------------------------------------------------------------------------------
   CASE(10) ! CAT KEDF
     ALLOCATE(keKernel(k1G, k2G, k3G, 4), stat=fileStatus)
@@ -373,23 +373,23 @@ SUBROUTINE SetupFunctional
     IF (rho0>0._DP) THEN
       hold0 = .TRUE.
     ELSE
-      rho0 = cell%numEle/cell%vol 
+      rho0 = cell%numEle/cell%vol
     END IF
-    IF (rhoS>0._DP) THEN 
+    IF (rhoS>0._DP) THEN
       holdS = .TRUE.
     ELSE
       IF (holdS) THEN
         rhoS = rho0
       ELSE
-        rhoS = cell%numEle/cell%vol 
+        rhoS = cell%numEle/cell%vol
       END IF
     END IF
 
 !------------------------------------------------------------------------------
-  CASE(11) ! Huang-Carter KEDF 
+  CASE(11) ! Huang-Carter KEDF
     ! This is TF + VW + Huang-Carter KEDF (2011) PRB .
     ALLOCATE(hc_lambda(n1G, n2G, n3G), stat=fileStatus)
-    IF (fileStatus/=0) THEN 
+    IF (fileStatus/=0) THEN
       PRINT *, 'Error in allocating hc_lambda, code =', fileStatus, ' STOP' ; STOP
     ENDIF
 
@@ -397,26 +397,26 @@ SUBROUTINE SetupFunctional
     lambda = 1.0_DP  ! coeff for TF
     mu     = 1.0_DP  ! coeff for VW
 
-    
+
     ! the default is setting rhoS=-1.0, meaning the average density
     IF(rhoS==-1.d0) then
-      rhoS = cell%numEle/cell%vol 
+      rhoS = cell%numEle/cell%vol
       IF(rankGlobal==0) & !VVK ADDED, 06 SEP 2015
       WRITE(logUnit,*) "rhoS=",rhoS
     ENDIF
 
     IF(rho0==-1.d0) then
-      rho0 = cell%numEle/cell%vol 
+      rho0 = cell%numEle/cell%vol
       WRITE(logUnit,*) "rho0=",rho0
     ENDIF
-   
-    IF(rhoS<0.d0 .AND. rho0<0.d0) THEN 
-      PRINT *,'For HC10, either rho0 or rhoS needs to be given! error, stop' 
+
+    IF(rhoS<0.d0 .AND. rho0<0.d0) THEN
+      PRINT *,'For HC10, either rho0 or rhoS needs to be given! error, stop'
       WRITE(*,*) " rhoS=", rhoS
       WRITE(*,*) " rho0=", rho0
       STOP
     ENDIF
-   
+
     IF (rhoS<0.d0) rhoS = rho0
     IF (rho0<0.d0) rho0 = rhoS
 
@@ -425,13 +425,13 @@ SUBROUTINE SetupFunctional
       STOP
     ENDIF
 
-    IF (beta < 0.d0) then 
+    IF (beta < 0.d0) then
       PRINT *,' beta < 0.0 error stop'
     ELSE
       alpha = 8.d0/3.d0 - beta
     ENDIF
-   
-    IF(rankGlobal==0) THEN !VVK ADDED, 06 SEP 2015 
+
+    IF(rankGlobal==0) THEN !VVK ADDED, 06 SEP 2015
     WRITE(logUnit,'(A,F12.6)') " coefficients for TF KEDF is ", lambda
     WRITE(logUnit,'(A,F12.6)') " coefficients for VW KEDF is ", mu
     WRITE(logUnit,'(A,F12.6)') " Lambda in HC10 is set to ", hc_lambda_val
@@ -479,7 +479,7 @@ SUBROUTINE SetupFunctional
     IF (rho0>0._DP) THEN
       hold0 = .TRUE.
     ELSE
-      rho0 = cell%numEle/cell%vol 
+      rho0 = cell%numEle/cell%vol
     END IF
     IF (rhoS>0._DP) THEN
       holdS = .TRUE.
@@ -487,7 +487,7 @@ SUBROUTINE SetupFunctional
       IF (holdS .EQV. .TRUE.) THEN
         rhoS = rho0
       ELSE
-        rhoS = cell%numEle/cell%vol 
+        rhoS = cell%numEle/cell%vol
       END IF
     END IF
 
@@ -530,68 +530,68 @@ SUBROUTINE SetupFunctional
                   0.124998690172 /)
     ! Interpolate first
     call spline_cubic_set ( 151, t(1:151), scalefunt(1:151), 1, 0._DP, 0, 0._DP, scalefunDD(1:151) )
-  
+
 !------------------------------------------------------------------------------
   CASE(15) ! GGA
     IF (lambda<-99.0) lambda = 1.0_DP
     IF (mu<-99._DP) mu = 1.0_DP
-    
+
 !------------------------------------------------------------------------------
   CASE(16) ! GGA + WGCD
     if(rho0==-1.d0) then
-      rho0 = cell%numEle/cell%vol 
+      rho0 = cell%numEle/cell%vol
     ENDIF
-    
+
     DO ii=1,numint
-        d(ii) = 0.d0 + 0.01d0*(ii-1.0) 
+        d(ii) = 0.d0 + 0.01d0*(ii-1.0)
     ENDDO
-    
+
     ELFvsd = &
-                (/0.00005000, 0.00021000, 0.00037127, 0.00054472, 0.00073318, & 
-                  0.00093765, 0.00115868, 0.00139664, 0.00165186, 0.00192465, & 
-                  0.00236011, 0.00309081, 0.00412453, 0.00520969, 0.00608653, & 
-                  0.00804831, 0.00934243, 0.01138334, 0.01366375, 0.01558003, & 
-                  0.01800965, 0.02043927, 0.02286888, 0.02529850, 0.02772812, & 
-                  0.02988452, 0.03126635, 0.03314065, 0.03671603, 0.04029141, & 
-                  0.04386678, 0.04744216, 0.05101753, 0.05459291, 0.05816829, & 
-                  0.06174366, 0.06531904, 0.06957662, 0.07408569, 0.07884882, & 
-                  0.08360986, 0.08869948, 0.09387569, 0.09905189, 0.10422809, & 
-                  0.10940430, 0.11458050, 0.11975670, 0.12493291, 0.13010911, & 
-                  0.13575203, 0.14156364, 0.14777025, 0.15409835, 0.16042646, & 
-                  0.16675457, 0.17308268, 0.17941079, 0.18573890, 0.19254076, & 
-                  0.19900258, 0.20546441, 0.21192623, 0.21838806, 0.22489239, & 
-                  0.23158703, 0.23835919, 0.24628165, 0.25467238, 0.26306311, & 
-                  0.27145384, 0.27984457, 0.28823530, 0.29603890, 0.30357624, & 
-                  0.31111359, 0.31865093, 0.32618828, 0.33372562, 0.34126297, & 
-                  0.34880031, 0.35633766, 0.36387501, 0.37141235, 0.37887925, & 
-                  0.38634356, 0.39414054, 0.40193752, 0.40973450, 0.41753148, & 
-                  0.42532847, 0.43312545, 0.43966414, 0.44604622, 0.45242831, & 
-                  0.45938698, 0.46679639, 0.47420580, 0.48161520, 0.48902461, & 
-                  0.49643402, 0.50384343, 0.51125283, 0.51866224, 0.52607165, & 
-                  0.53348106, 0.54089046, 0.54829987, 0.55570928, 0.56311868, & 
-                  0.57052809, 0.57793750, 0.58713237, 0.59276530, 0.59823903, & 
-                  0.60428059, 0.61121037, 0.61413646, 0.61795201, 0.62262063, & 
-                  0.63018503, 0.63820852, 0.64623202, 0.65214957, 0.65693808, & 
-                  0.66172660, 0.66722826, 0.67265272, 0.67800015, 0.68327078, & 
-                  0.68846488, 0.69358277, 0.69862482, 0.70359142, 0.70848303, & 
-                  0.71330013, 0.71804324, 0.72271290, 0.72730971, 0.73183426, & 
-                  0.73628720, 0.74066918, 0.74498089, 0.74922303, 0.75339632, & 
-                  0.75750151, 0.76153934, 0.76551058, 0.76941602, 0.77325645, & 
-                  0.77703267, 0.78074548, 0.78439571, 0.78798418, 0.79151172, & 
-                  0.79497915, 0.79838731, 0.80173704, 0.80502917, 0.80826454, & 
-                  0.81144399, 0.81456834, 0.81763844, 0.82065510, 0.82361917, & 
-                  0.82653145, 0.82939276, 0.83220392, 0.83496573, 0.83767899, & 
-                  0.84034450, 0.84296303, 0.84553538, 0.84806231, 0.85054458, & 
-                  0.85298296, 0.85537819, 0.85773101, 0.86004215, 0.86231233, & 
-                  0.86454227, 0.86673267, 0.86888422, 0.87099761, 0.87307352, & 
-                  0.87511261, 0.87711554, 0.87908296, 0.88101551, 0.88291381, & 
-                  0.88477848, 0.88661014, 0.88840938, 0.89017680, 0.89191297, & 
-                  0.89361848, 0.89529387, 0.89693971, 0.89855653, 0.90014488/) 
+                (/0.00005000, 0.00021000, 0.00037127, 0.00054472, 0.00073318, &
+                  0.00093765, 0.00115868, 0.00139664, 0.00165186, 0.00192465, &
+                  0.00236011, 0.00309081, 0.00412453, 0.00520969, 0.00608653, &
+                  0.00804831, 0.00934243, 0.01138334, 0.01366375, 0.01558003, &
+                  0.01800965, 0.02043927, 0.02286888, 0.02529850, 0.02772812, &
+                  0.02988452, 0.03126635, 0.03314065, 0.03671603, 0.04029141, &
+                  0.04386678, 0.04744216, 0.05101753, 0.05459291, 0.05816829, &
+                  0.06174366, 0.06531904, 0.06957662, 0.07408569, 0.07884882, &
+                  0.08360986, 0.08869948, 0.09387569, 0.09905189, 0.10422809, &
+                  0.10940430, 0.11458050, 0.11975670, 0.12493291, 0.13010911, &
+                  0.13575203, 0.14156364, 0.14777025, 0.15409835, 0.16042646, &
+                  0.16675457, 0.17308268, 0.17941079, 0.18573890, 0.19254076, &
+                  0.19900258, 0.20546441, 0.21192623, 0.21838806, 0.22489239, &
+                  0.23158703, 0.23835919, 0.24628165, 0.25467238, 0.26306311, &
+                  0.27145384, 0.27984457, 0.28823530, 0.29603890, 0.30357624, &
+                  0.31111359, 0.31865093, 0.32618828, 0.33372562, 0.34126297, &
+                  0.34880031, 0.35633766, 0.36387501, 0.37141235, 0.37887925, &
+                  0.38634356, 0.39414054, 0.40193752, 0.40973450, 0.41753148, &
+                  0.42532847, 0.43312545, 0.43966414, 0.44604622, 0.45242831, &
+                  0.45938698, 0.46679639, 0.47420580, 0.48161520, 0.48902461, &
+                  0.49643402, 0.50384343, 0.51125283, 0.51866224, 0.52607165, &
+                  0.53348106, 0.54089046, 0.54829987, 0.55570928, 0.56311868, &
+                  0.57052809, 0.57793750, 0.58713237, 0.59276530, 0.59823903, &
+                  0.60428059, 0.61121037, 0.61413646, 0.61795201, 0.62262063, &
+                  0.63018503, 0.63820852, 0.64623202, 0.65214957, 0.65693808, &
+                  0.66172660, 0.66722826, 0.67265272, 0.67800015, 0.68327078, &
+                  0.68846488, 0.69358277, 0.69862482, 0.70359142, 0.70848303, &
+                  0.71330013, 0.71804324, 0.72271290, 0.72730971, 0.73183426, &
+                  0.73628720, 0.74066918, 0.74498089, 0.74922303, 0.75339632, &
+                  0.75750151, 0.76153934, 0.76551058, 0.76941602, 0.77325645, &
+                  0.77703267, 0.78074548, 0.78439571, 0.78798418, 0.79151172, &
+                  0.79497915, 0.79838731, 0.80173704, 0.80502917, 0.80826454, &
+                  0.81144399, 0.81456834, 0.81763844, 0.82065510, 0.82361917, &
+                  0.82653145, 0.82939276, 0.83220392, 0.83496573, 0.83767899, &
+                  0.84034450, 0.84296303, 0.84553538, 0.84806231, 0.85054458, &
+                  0.85298296, 0.85537819, 0.85773101, 0.86004215, 0.86231233, &
+                  0.86454227, 0.86673267, 0.86888422, 0.87099761, 0.87307352, &
+                  0.87511261, 0.87711554, 0.87908296, 0.88101551, 0.88291381, &
+                  0.88477848, 0.88661014, 0.88840938, 0.89017680, 0.89191297, &
+                  0.89361848, 0.89529387, 0.89693971, 0.89855653, 0.90014488/)
     ! Interpolate first
     call spline_cubic_set ( numint, d(1:numint), ELFvsd(1:numint), 1, 0._DP, 0, 0._DP, ELFvsdDD(1:numint) )
 
 !------------------------------------------------------------------------------
-! --> VVK 
+! --> VVK
 !------------------------------------------------------------------------------
   CASE(1010) ! TTF
     ! This is technically lambda * TTF. We do nothing.
@@ -601,12 +601,36 @@ SUBROUTINE SetupFunctional
     WRITE(logUnit,'(A,F10.4)') " Coefficient for TTF Fs is ", lambda
   CASE(1013:1125) !new TGGAPotentialPlus implementation, we do nothing so far
 ! <-- VVK
+! --> TWY
+  CASE(1200) ! Sjostrom & Daligault functional
+    IF (rho0>0._DP) THEN
+      hold0 = .TRUE. ! This should be redundant but one cannot be too careful.
+    ELSE
+      rho0 = cell%numEle/cell%vol
+    END IF
+
+    ! Periodic Boundary Condition
+    ! the pre-FFT array, before padding, is saved for convolutions.
+    ALLOCATE(keKernel(k1G, k2G, k3G,1), stat=fileStatus)
+
+    IF (fileStatus/=0) THEN
+      WRITE(message,*)'Error allocating the non-local kernel table. Leaving.'
+      CALL Error(6, message)
+    END IF
+
+    ALLOCATE(keKernelB(k1G, k2G, k3G), stat=fileStatus)
+
+    IF (fileStatus/=0) THEN
+      WRITE(message,*)'Error allocating the non-local vW kernel table. Leaving.'
+      CALL Error(6, message)
+    END IF
+! <-- TWY
   CASE DEFAULT ! By default we do nothing.
-    
-    WRITE(message,*) "SetupFunctional: Please check your type of KEDF, ", kinetic 
+
+    WRITE(message,*) "SetupFunctional: Please check your type of KEDF, ", kinetic
     CALL QUIT(message)
 
-  END SELECT 
+  END SELECT
 
   RETURN
 
@@ -616,7 +640,7 @@ END SUBROUTINE SetupFunctional
 SUBROUTINE KEDFRefresh(kinetic)
 !------------------------------------------------------------------------------
 ! DESCRIPTION:
-!   This function is intended to be run to refresh this module and make it 
+!   This function is intended to be run to refresh this module and make it
 !   ready for use each time the lattice vector is changed.
 !
 ! CONDITIONS AND ASSUMPTIONS:
@@ -643,7 +667,7 @@ SUBROUTINE KEDFRefresh(kinetic)
   REAL(KIND=DP) :: tmpRho
 
 
-                     !>> INTERNAL VARIABLES <<! 
+                     !>> INTERNAL VARIABLES <<!
                      !>> INITIALIZATION <<!
   CALL Title("SetupKEDF::KEDFRefresh")
   CALL StartClock('KEDFRefresh')
@@ -656,20 +680,25 @@ SUBROUTINE KEDFRefresh(kinetic)
   CALL FillQTable(cell%cellRecip)
 
   SELECT CASE(kinetic)
-    ! 4: WT, 17: EVT 
+    ! 4: WT, 17: EVT
     CASE(4,17)
-      IF (.NOT.hold0) rho0 = tmpRho 
+      IF (.NOT.hold0) rho0 = tmpRho
       CALL FillWT()
     ! 5: WGC, 12: WGCD, 18: EVC
     CASE(5,12,18)
-      IF (.NOT.hold0) rho0 = tmpRho 
-      IF (.NOT.holdS) rhoS = mrhos * tmpRho 
+      IF (.NOT.hold0) rho0 = tmpRho
+      IF (.NOT.holdS) rhoS = mrhos * tmpRho
       CALL FillWGC()
     ! 10: CAT
     CASE(10)
-      IF (.NOT.hold0) rho0 = tmpRho 
-      IF (.NOT.holdS) rhoS = tmpRho 
+      IF (.NOT.hold0) rho0 = tmpRho
+      IF (.NOT.holdS) rhoS = tmpRho
       CALL FillCAT()
+    ! --> TWY
+    CASE(1200)
+      IF (.NOT.hold0) rho0 = tmpRho
+      CALL FillWT()
+    ! <-- TWY
   END SELECT
 
   CALL StopClock('KEDFRefresh')
