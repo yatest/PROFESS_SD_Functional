@@ -786,7 +786,7 @@ END FUNCTION TGGAStress
 !------------------------------------------------------------------------------
 !------------------------------------------------------------------------------
 ! --> TWY ADDED
-SUBROUTINE FNLSD(rhoReal_SI, potential, calcEnergy, TTFenergy,vWenergy,NLenergy)
+SUBROUTINE FNLSD(rhoReal_SI, potential, calcEnergy, TTFenergy, vWenergy, NLenergy)
   !------------------------------------------------------------------------------
   ! DESCRIPTION:
   ! Evaluates Sjostrom and Daligault non-local free-energy functional (SDF)
@@ -796,20 +796,26 @@ SUBROUTINE FNLSD(rhoReal_SI, potential, calcEnergy, TTFenergy,vWenergy,NLenergy)
   ! CONDITIONS AND ASSUMPTIONS:
   !
   ! FUTURE OPTIMIZATIONS AND IMPROVEMENTS:
-  !
-  !   Make its own .f90 file with outputs of ETable(7:9), kinetic, vW, and
-  !   non-local energies
+  ! Make its own .f90 file with outputs of ETable(7:9), kinetic, vW, and
+  ! non-local energies
+  ! Should restructure and clean up code, however want to keep similar structure
+  ! to other KEDF functionals for now
   !
   ! REFERENCES:
-  !
+  ! Sjostrom and Daligault, Phys. Rev. Lett. 113, 155006 (2014)
   !------------------------------------------------------------------------------
   ! REVISION LOG:
-  !
+  ! 01-01-22: TWY: Initial implementation
+  ! 26-10-23: TWY: Cleaned up code 
   !------------------------------------------------------------------------------
   ! ******** INPUT ******************************************************
-  !
+  ! rhoReal_SI                 : electron density in real space, spin INDEPENDENT
   ! ******** OUTPUT *****************************************************
-  !
+  ! potential                  : non-interacting free energy potential
+  ! calcEnergy                 : controls calculation of free-energy
+  ! TTFenergy                  : finite-T Thomas-Fermi energy
+  ! vWenergy                   : non-local von-Weizsacker energy
+  ! NLenergy                   : non-local energy
   !------------------------------------------------------------------------------
 
   USE KEDF_WTkernel, ONLY: keKernel, keKernelB
@@ -817,12 +823,12 @@ SUBROUTINE FNLSD(rhoReal_SI, potential, calcEnergy, TTFenergy,vWenergy,NLenergy)
   IMPLICIT NONE
 
   !>> EXTERNAL VARIABLES <<!
-  REAL(kind=DP), DIMENSION(:,:,:), INTENT(IN)  :: rhoReal_SI            ! Electron density in real space, spin INDEPENDENT
-  REAL(kind=DP), DIMENSION(:,:,:), INTENT(OUT) :: potential           ! The XC potential
-  LOGICAL,                          INTENT(IN) :: calcEnergy          ! controls calculation of free-energy
-  REAL(kind=DP),                   INTENT(OUT) :: TTFenergy,vWenergy,NLenergy
+  REAL(kind=DP), DIMENSION(:,:,:), INTENT(IN)  :: rhoReal_SI          
+  REAL(kind=DP), DIMENSION(:,:,:), INTENT(OUT) :: potential         
+  LOGICAL,                          INTENT(IN) :: calcEnergy         
+  REAL(kind=DP),                   INTENT(OUT) :: TTFenergy, vWenergy, NLenergy
 
-  REAL(KIND=DP) :: temperHa, coeff, TFpressure, Imh !Imh = Fermi integral with alpha=-1/2
+  REAL(KIND=DP) :: temperHa, coeff, TFpressure, Imh ! Imh = Fermi integral with alpha = -1/2
   REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: tmpRho, &
     tred, dtreddn, TFpot, tau0, dfdt, dydt, y, f, dfdy, d2fdy2, h, dhdy, d2hdy2
   REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: sqrtRho_SI, potentialSqrt, tempPotential
@@ -860,32 +866,35 @@ SUBROUTINE FNLSD(rhoReal_SI, potential, calcEnergy, TTFenergy,vWenergy,NLenergy)
   NLenergy = 0._DP
   if(calcSTRESS) vkin2 = 0._DP
 
-  temperHa=temper/11604.5_DP/27.211396132_DP !100 K--> eV--> Hartree
-  coeff = 3._DP/10._DP*(3._DP*pi**2)**(twothird)
-  tau0 = coeff*tmpRho**fivethird
-  tred = temperHa/((3._DP*PI**2*tmpRho)**twothird/two) !reduced temp (temper/tempF is el. temperature in a.u.)
-  dtreddn = -twothird*tred/tmpRho ! (dt/dn)
-  y = twothird/tred**threehalf!y=2/3/t_red^(3/2)
-  CALL FPERROT2(Y,F,dFdY,d2FdY2,H,dHdY,d2HdY2)
-  dydt=(-threehalf)*y/tred         ! dy/dt=-3/2 * y/t
-  dfdt=dfdy*dydt
+  temperHa = temper / 11604.5_DP / 27.211396132_DP ! 100 K--> eV--> Hartree
+  coeff = 3._DP / 10._DP * (3._DP * pi**2)**(twothird)
+  tau0 = coeff * tmpRho**fivethird
+  tred = temperHa / ((3._DP * PI**2 * tmpRho)**twothird / two) ! reduced temp (temper / tempF is el. temperature in a.u.)
+  dtreddn = -twothird * tred / tmpRho ! dt / dn
+  y = twothird / tred**threehalf ! y = 2 / 3 / t_red^(3/2)
+
+  ! Perrot's fit for f(y) and h(y) functions and derivatives 
+  CALL FPERROT2(y, f, dfdy, d2fdy2, h, dhdy, d2hdy2)
+
+  dydt = (-threehalf) * y / tred ! dy/dt = -3/2 * y / t
+  dfdt = dfdy * dydt
 
   TFpot = (coeff * fivethird * tmpRho**twothird) * &  ! v_TF0 *
-               (fivethird * tred * f) + &                 ! 5/3 * t * f(t)
-                fivethird * tau0 * dtreddn * &            ! 5/3 * tau_0 * (dt/dn) *
-              (f+tred*dfdt)                               ! (f(t)+t * df(t)/dt)
+               (fivethird * tred * f) + &             ! 5/3 * t * f(t)
+                fivethird * tau0 * dtreddn * &        ! 5/3 * tau_0 * (dt/dn) *
+              (f+tred*dfdt)                           ! (f(t)+t * df(t)/dt)
 
 
   ! TF term
   potential = potential + TFpot
-  TFpressure = -SUM(coeff*fivethird*tmpRho**(5._DP/3._DP)*tred*f - tmpRho*TFpot)
+  TFpressure = -SUM(coeff * fivethird * tmpRho**(5._DP / 3._DP) * tred * f - tmpRho * TFpot)
 
   IF (calcEnergy) THEN
-    TTFenergy = TTFenergy + coeff*fivethird*SUM(tmpRho**(5._DP/3._DP) * tred * f)
-    TFpressure = (2._DP/3._DP)*TTFenergy
+    TTFenergy = TTFenergy + coeff * fivethird * SUM(tmpRho**(5._DP / 3._DP) * tred * f)
+    TFpressure = (2._DP / 3._DP) * TTFenergy
   ENDIF
 
-
+  ! calculate w and beta kernels for non-local contributions
   DO i=1,SIZE(w,1)
     DO j=1,SIZE(w,2)
       DO k=1,SIZE(w,3)
@@ -896,16 +905,15 @@ SUBROUTINE FNLSD(rhoReal_SI, potential, calcEnergy, TTFenergy,vWenergy,NLenergy)
   ENDDO
 
   ! vW term
-  ! choose between old FFT and FFT_NEW, the latter one seems do not work in parallel
+  ! choose between old FFT and FFT_NEW, the latter one seems to not work in parallel
 #ifdef __FFTW2
   ! old FFT:
   trafo = FFT_2(sqrtRho_SI)
-
   potentialSqrt = FFT_2(trafo * qTable * qTable * (1 + beta))
 #else
-  CALL FFT_NEW(FFT_STD_STATE,sqrtRho_SI,trafo)
+  CALL FFT_NEW(FFT_STD_STATE, sqrtRho_SI, trafo)
   trafo = trafo * qTable * qTable * (1 + beta)
-  CALL FFT_NEW(FFT_STD_STATE,trafo,potentialSqrt)
+  CALL FFT_NEW(FFT_STD_STATE, trafo, potentialSqrt)
 #endif
 
   IF (calcEnergy) THEN
@@ -913,46 +921,45 @@ SUBROUTINE FNLSD(rhoReal_SI, potential, calcEnergy, TTFenergy,vWenergy,NLenergy)
       ! old FFT:
       trafo = FFT_2(sqrtRho_SI)
 #else
-      CALL FFT_NEW(FFT_STD_STATE,sqrtRho_SI,trafo)
+      CALL FFT_NEW(FFT_STD_STATE, sqrtRho_SI, trafo)
 #endif
-    vWenergy = 0.5_DP * SUM(sqrtRho_SI*potentialSqrt)
+    vWenergy = 0.5_DP * SUM(sqrtRho_SI * potentialSqrt)
   ENDIF
 
-  ! This is currently for the sqrt of the density. We want all terms to be the density.
-  ! Chain rule: dE/d(rho) = dE/d(sqrt(rho)) / (2*sqrt(rho))
-  potentialSqrt = potentialSqrt/(2._DP*SQRT(tmpRho))
+  ! this is currently for the sqrt of the density. We want all terms to be the density.
+  ! chain rule: dE/d(rho) = dE/d(sqrt(rho)) / (2*sqrt(rho))
+  potentialSqrt = potentialSqrt / (2._DP * SQRT(tmpRho))
 
   potential = potential + potentialSqrt
 
 
 
-  ! Non-local term
+  ! non-local term
 #ifdef __FFTW2
   tempPotential = FFT_2(FFT_2(tmpRho**b) * w)
 #else
-  CALL FFT_NEW(FFT_STD_STATE,tmpRho**b,rhob)
+  CALL FFT_NEW(FFT_STD_STATE, tmpRho**b, rhob)
   rhob = rhob * w
-  CALL FFT_NEW(FFT_STD_STATE,rhob,tempPotential)
+  CALL FFT_NEW(FFT_STD_STATE, rhob, tempPotential)
 #endif
 
-  ! I don't think we need the factors of cTF due to the definition of the free energy
-  ! Compare WGC paper and SD paper definitions of the non-local component
-  ! Original can be found in KEDF_WT.f90
+  ! factors of c_TF isn't required due to the definition of the free energy
+  ! compare WGC paper and SDF paper definitions of the non-local component
+  ! original can be found in KEDF_WT.f90
   IF (calcEnergy) THEN
     NLenergy = SUM(tmpRho**a * tempPotential)
   ENDIF
 
-  ! I don't think we need the factors of cTF due to the definition of the free energy
-  ! Compare WGC paper and SD paper definitions of the non-local component
+  ! see comment above
 #ifdef __FFTW2
-  tempPotential = (a * tmpRho**(a-1._DP) * tempPotential +&
-         b * tmpRho**(b-1._DP) * FFT_2(FFT_2(tmpRho**a) * w))
+  tempPotential = (a * tmpRho**(a - 1._DP) * tempPotential +&
+         b * tmpRho**(b - 1._DP) * FFT_2(FFT_2(tmpRho**a) * w))
 #else
-  CALL FFT_NEW(FFT_STD_STATE,tmpRho**a,rhoa)
+  CALL FFT_NEW(FFT_STD_STATE, tmpRho**a, rhoa)
   rhoa = rhoa * w
-  CALL FFT_NEW(FFT_STD_STATE,rhoa,tempPotential2)
-  tempPotential = (a * tmpRho**(a-1._DP) * tempPotential +&
-         b * tmpRho**(b-1._DP) * tempPotential2)
+  CALL FFT_NEW(FFT_STD_STATE, rhoa, tempPotential2)
+  tempPotential = (a * tmpRho**(a - 1._DP) * tempPotential +&
+         b * tmpRho**(b - 1._DP) * tempPotential2)
 #endif
   potential = potential + tempPotential
 

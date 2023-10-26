@@ -634,8 +634,8 @@ SUBROUTINE CalculateKEDFPotPlus(rhoOpt)
 ! --> TWY ADDED
     ! Sjostrom and Daligault free energy functional
     CASE(1200)
-      ! Since kinetic and entropic contributions can't be separated for this functional, we instead use the outputs for the non-local vW term
-      ! and the non-local term
+      ! Since kinetic and entropic contributions can't be separated for this functional
+      ! instead using the locETable(9) to store the non-local term
       CALL FNLSD(rhoOpt, tempPotential, calcEnergy, locETable(7),locETable(8),locETable(9))
       potential = potential + SPREAD(tempPotential, 4, numSpin)
       IF (optSqrt) potential = 2._DP * SQRT(rho) * potential

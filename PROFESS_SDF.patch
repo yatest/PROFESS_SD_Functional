@@ -1,29 +1,16 @@
-diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/CalPotential.f90 OFQE2.0.1_patched/PROFESS3.0m5/Source/CalPotential.f90
---- OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/CalPotential.f90	2019-05-28 09:28:22.000000000 +0100
-+++ OFQE2.0.1_patched/PROFESS3.0m5/Source/CalPotential.f90	2022-03-14 16:03:19.959397594 +0000
-@@ -342,19 +342,19 @@
-   USE KEDF_TF, ONLY: CalTF
-   USE KEDF_VW, ONLY: CalVW
-   USE KEDF_WT, ONLY : WTPotentialPlus
-   USE KEDF_WGC, ONLY : WGCPotentialPlus   
-   USE KEDF_Q, ONLY: CalLHQ
-   USE KEDF_CAT, ONLY: CalCAT
-   USE KEDF_HC10, ONLY: intPot 
-   USE KEDF_WGCD, ONLY : DecomposeDensityKEDF 
-   USE KEDF_DenDec, ONLY: potDD 
-   USE KEDF_GGA, ONLY: GGA_functional
-   USE KEDF_GGA, ONLY : model, GGAPotentialPlus, vWGTF
+diff -Narub PROFESS3.0m5B_old/CalPotential.f90 PROFESS3.0m5B/CalPotential.f90
+--- PROFESS3.0m5B_old/CalPotential.f90	2023-10-26 17:09:40.000000000 +0100
++++ PROFESS3.0m5B/CalPotential.f90	2023-10-26 15:30:10.000000000 +0100
+@@ -353,7 +353,7 @@
    USE KEDF_WGCD, ONLY: Fr
    USE KEDF_EvW, ONLY: Cal_EVC, Cal_EVT
    USE FS_TF, ONLY: TTF1PotentialPlus !T-dep. TF free-energy and potential; VVK
 -  USE FS_GGA, ONLY: TGGAPotentialPlus !T-dep. GGA free-energy and potential; VVK
--  USE SYS, ONLY: bvac 
 +  USE FS_GGA, ONLY: TGGAPotentialPlus, FNLSD !T-dep. GGA free-energy and potential; VVK
-+  USE SYS, ONLY: bvac
+   USE SYS, ONLY: bvac 
    !consider better algorithm for vacuum or not
    !
-   IMPLICIT NONE
-@@ -631,10 +631,18 @@
+@@ -631,7 +631,15 @@
        !functionalTime(12)=functionalTime(12)+TimerStop(watch)
        !functionalTime(7)=functionalTime(7)+TimerStop(watch)
  ! <-- VVK END
@@ -31,8 +18,8 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/CalPotential.f90 OFQE2.0.1_
 +! --> TWY ADDED
 +    ! Sjostrom and Daligault free energy functional
 +    CASE(1200)
-+      ! Since kinetic and entropic contributions can't be separated for this functional, we instead use the outputs for the non-local vW term
-+      ! and the non-local term
++      ! Since kinetic and entropic contributions can't be separated for this functional
++      ! instead using the locETable(9) to store the non-local term
 +      CALL FNLSD(rhoOpt, tempPotential, calcEnergy, locETable(7),locETable(8),locETable(9))
 +      potential = potential + SPREAD(tempPotential, 4, numSpin)
 +      IF (optSqrt) potential = 2._DP * SQRT(rho) * potential
@@ -40,12 +27,9 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/CalPotential.f90 OFQE2.0.1_
      CASE DEFAULT  ! This case should never occur.
        message=" CalculatePotentialPlus: The KEDF selected is not implemented. STOP."
        WRITE(errorUnit,'(A)') message 
-       CALL QUIT(message);
-       STOP
- 
-diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/FS_GGA.f90 OFQE2.0.1_patched/PROFESS3.0m5/Source/FS_GGA.f90
---- OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/FS_GGA.f90	2019-05-28 09:28:22.000000000 +0100
-+++ OFQE2.0.1_patched/PROFESS3.0m5/Source/FS_GGA.f90	2022-03-14 16:03:48.182090397 +0000
+diff -Narub PROFESS3.0m5B_old/FS_GGA.f90 PROFESS3.0m5B/FS_GGA.f90
+--- PROFESS3.0m5B_old/FS_GGA.f90	2023-10-26 17:09:40.000000000 +0100
++++ PROFESS3.0m5B/FS_GGA.f90	2023-10-26 15:58:56.000000000 +0100
 @@ -24,8 +24,10 @@
  ! STRUCTURE OF MODULE:
  !   MODULE FS_GGA
@@ -58,12 +42,36 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/FS_GGA.f90 OFQE2.0.1_patche
  !     |_...
  !     |_SUBROUTINE FGGAyyyy
  !
-@@ -782,6 +785,181 @@
+@@ -223,6 +225,7 @@
+     negTxS = 0._DP
+     if(calcSTRESS) vkin2 = 0._DP
+   
++
+     ! choose between old FFT and FFT_NEW, the latter one seems do not work in parallel 
+ #ifdef __FFTW2 !--> VVK
+     ! old FFT:
+@@ -254,7 +257,6 @@
+     !-------------------------------------------------
+     ! Compute ...
+     !-------------------------------------------------
+-
+     ! the ...
+     ! temp=T (in eV??)
+     ! Energy calculated here is in Hartrees (actually the factor of
+@@ -297,6 +299,7 @@
+     where ( s2 < 1.d-15 ) 
+       s2 = 1.d-15
+     endwhere
++
+ ! July 2015 ---------------------------------------------------
+ !    rhomaxl = MAXVAL(tmpRho)
+ !    rhominl = MINVAL(tmpRho)
+@@ -782,6 +785,188 @@
  !
  !------------------------------------------------------------------------------
  !------------------------------------------------------------------------------
 +! --> TWY ADDED
-+SUBROUTINE FNLSD(rhoReal_SI, potential, calcEnergy, TTFenergy,vWenergy,NLenergy)
++SUBROUTINE FNLSD(rhoReal_SI, potential, calcEnergy, TTFenergy, vWenergy, NLenergy)
 +  !------------------------------------------------------------------------------
 +  ! DESCRIPTION:
 +  ! Evaluates Sjostrom and Daligault non-local free-energy functional (SDF)
@@ -73,20 +81,26 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/FS_GGA.f90 OFQE2.0.1_patche
 +  ! CONDITIONS AND ASSUMPTIONS:
 +  !
 +  ! FUTURE OPTIMIZATIONS AND IMPROVEMENTS:
-+  !
-+  !   Make its own .f90 file with outputs of ETable(7:9), kinetic, vW, and
-+  !   non-local energies
++  ! Make its own .f90 file with outputs of ETable(7:9), kinetic, vW, and
++  ! non-local energies
++  ! Should restructure and clean up code, however want to keep similar structure
++  ! to other KEDF functionals for now
 +  !
 +  ! REFERENCES:
-+  !
++  ! Sjostrom and Daligault, Phys. Rev. Lett. 113, 155006 (2014)
 +  !------------------------------------------------------------------------------
 +  ! REVISION LOG:
-+  !
++  ! 01-01-22: TWY: Initial implementation
++  ! 26-10-23: TWY: Cleaned up code 
 +  !------------------------------------------------------------------------------
 +  ! ******** INPUT ******************************************************
-+  !
++  ! rhoReal_SI                 : electron density in real space, spin INDEPENDENT
 +  ! ******** OUTPUT *****************************************************
-+  !
++  ! potential                  : non-interacting free energy potential
++  ! calcEnergy                 : controls calculation of free-energy
++  ! TTFenergy                  : finite-T Thomas-Fermi energy
++  ! vWenergy                   : non-local von-Weizsacker energy
++  ! NLenergy                   : non-local energy
 +  !------------------------------------------------------------------------------
 +
 +  USE KEDF_WTkernel, ONLY: keKernel, keKernelB
@@ -94,12 +108,12 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/FS_GGA.f90 OFQE2.0.1_patche
 +  IMPLICIT NONE
 +
 +  !>> EXTERNAL VARIABLES <<!
-+  REAL(kind=DP), DIMENSION(:,:,:), INTENT(IN)  :: rhoReal_SI            ! Electron density in real space, spin INDEPENDENT
-+  REAL(kind=DP), DIMENSION(:,:,:), INTENT(OUT) :: potential           ! The XC potential
-+  LOGICAL,                          INTENT(IN) :: calcEnergy          ! controls calculation of free-energy
-+  REAL(kind=DP),                   INTENT(OUT) :: TTFenergy,vWenergy,NLenergy
++  REAL(kind=DP), DIMENSION(:,:,:), INTENT(IN)  :: rhoReal_SI          
++  REAL(kind=DP), DIMENSION(:,:,:), INTENT(OUT) :: potential         
++  LOGICAL,                          INTENT(IN) :: calcEnergy         
++  REAL(kind=DP),                   INTENT(OUT) :: TTFenergy, vWenergy, NLenergy
 +
-+  REAL(KIND=DP) :: temperHa, coeff, TFpressure, Imh !Imh = Fermi integral with alpha=-1/2
++  REAL(KIND=DP) :: temperHa, coeff, TFpressure, Imh ! Imh = Fermi integral with alpha = -1/2
 +  REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: tmpRho, &
 +    tred, dtreddn, TFpot, tau0, dfdt, dydt, y, f, dfdy, d2fdy2, h, dhdy, d2hdy2
 +  REAL(kind=DP), DIMENSION(SIZE(rhoReal_SI,1), SIZE(rhoReal_SI,2), SIZE(rhoReal_SI,3)) :: sqrtRho_SI, potentialSqrt, tempPotential
@@ -137,32 +151,35 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/FS_GGA.f90 OFQE2.0.1_patche
 +  NLenergy = 0._DP
 +  if(calcSTRESS) vkin2 = 0._DP
 +
-+  temperHa=temper/11604.5_DP/27.211396132_DP !100 K--> eV--> Hartree
-+  coeff = 3._DP/10._DP*(3._DP*pi**2)**(twothird)
-+  tau0 = coeff*tmpRho**fivethird
-+  tred = temperHa/((3._DP*PI**2*tmpRho)**twothird/two) !reduced temp (temper/tempF is el. temperature in a.u.)
-+  dtreddn = -twothird*tred/tmpRho ! (dt/dn)
-+  y = twothird/tred**threehalf!y=2/3/t_red^(3/2)
-+  CALL FPERROT2(Y,F,dFdY,d2FdY2,H,dHdY,d2HdY2)
-+  dydt=(-threehalf)*y/tred         ! dy/dt=-3/2 * y/t
-+  dfdt=dfdy*dydt
++  temperHa = temper / 11604.5_DP / 27.211396132_DP ! 100 K--> eV--> Hartree
++  coeff = 3._DP / 10._DP * (3._DP * pi**2)**(twothird)
++  tau0 = coeff * tmpRho**fivethird
++  tred = temperHa / ((3._DP * PI**2 * tmpRho)**twothird / two) ! reduced temp (temper / tempF is el. temperature in a.u.)
++  dtreddn = -twothird * tred / tmpRho ! dt / dn
++  y = twothird / tred**threehalf ! y = 2 / 3 / t_red^(3/2)
++
++  ! Perrot's fit for f(y) and h(y) functions and derivatives 
++  CALL FPERROT2(y, f, dfdy, d2fdy2, h, dhdy, d2hdy2)
++
++  dydt = (-threehalf) * y / tred ! dy/dt = -3/2 * y / t
++  dfdt = dfdy * dydt
 +
 +  TFpot = (coeff * fivethird * tmpRho**twothird) * &  ! v_TF0 *
-+               (fivethird * tred * f) + &                 ! 5/3 * t * f(t)
-+                fivethird * tau0 * dtreddn * &            ! 5/3 * tau_0 * (dt/dn) *
-+              (f+tred*dfdt)                               ! (f(t)+t * df(t)/dt)
++               (fivethird * tred * f) + &             ! 5/3 * t * f(t)
++                fivethird * tau0 * dtreddn * &        ! 5/3 * tau_0 * (dt/dn) *
++              (f+tred*dfdt)                           ! (f(t)+t * df(t)/dt)
 +
 +
 +  ! TF term
 +  potential = potential + TFpot
-+  TFpressure = -SUM(coeff*fivethird*tmpRho**(5._DP/3._DP)*tred*f - tmpRho*TFpot)
++  TFpressure = -SUM(coeff * fivethird * tmpRho**(5._DP / 3._DP) * tred * f - tmpRho * TFpot)
 +
 +  IF (calcEnergy) THEN
-+    TTFenergy = TTFenergy + coeff*fivethird*SUM(tmpRho**(5._DP/3._DP) * tred * f)
-+    TFpressure = (2._DP/3._DP)*TTFenergy
++    TTFenergy = TTFenergy + coeff * fivethird * SUM(tmpRho**(5._DP / 3._DP) * tred * f)
++    TFpressure = (2._DP / 3._DP) * TTFenergy
 +  ENDIF
 +
-+
++  ! calculate w and beta kernels for non-local contributions
 +  DO i=1,SIZE(w,1)
 +    DO j=1,SIZE(w,2)
 +      DO k=1,SIZE(w,3)
@@ -173,16 +190,15 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/FS_GGA.f90 OFQE2.0.1_patche
 +  ENDDO
 +
 +  ! vW term
-+  ! choose between old FFT and FFT_NEW, the latter one seems do not work in parallel
++  ! choose between old FFT and FFT_NEW, the latter one seems to not work in parallel
 +#ifdef __FFTW2
 +  ! old FFT:
 +  trafo = FFT_2(sqrtRho_SI)
-+
 +  potentialSqrt = FFT_2(trafo * qTable * qTable * (1 + beta))
 +#else
-+  CALL FFT_NEW(FFT_STD_STATE,sqrtRho_SI,trafo)
++  CALL FFT_NEW(FFT_STD_STATE, sqrtRho_SI, trafo)
 +  trafo = trafo * qTable * qTable * (1 + beta)
-+  CALL FFT_NEW(FFT_STD_STATE,trafo,potentialSqrt)
++  CALL FFT_NEW(FFT_STD_STATE, trafo, potentialSqrt)
 +#endif
 +
 +  IF (calcEnergy) THEN
@@ -190,46 +206,45 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/FS_GGA.f90 OFQE2.0.1_patche
 +      ! old FFT:
 +      trafo = FFT_2(sqrtRho_SI)
 +#else
-+      CALL FFT_NEW(FFT_STD_STATE,sqrtRho_SI,trafo)
++      CALL FFT_NEW(FFT_STD_STATE, sqrtRho_SI, trafo)
 +#endif
-+    vWenergy = 0.5_DP * SUM(sqrtRho_SI*potentialSqrt)
++    vWenergy = 0.5_DP * SUM(sqrtRho_SI * potentialSqrt)
 +  ENDIF
 +
-+  ! This is currently for the sqrt of the density. We want all terms to be the density.
-+  ! Chain rule: dE/d(rho) = dE/d(sqrt(rho)) / (2*sqrt(rho))
-+  potentialSqrt = potentialSqrt/(2._DP*SQRT(tmpRho))
++  ! this is currently for the sqrt of the density. We want all terms to be the density.
++  ! chain rule: dE/d(rho) = dE/d(sqrt(rho)) / (2*sqrt(rho))
++  potentialSqrt = potentialSqrt / (2._DP * SQRT(tmpRho))
 +
 +  potential = potential + potentialSqrt
 +
 +
 +
-+  ! Non-local term
++  ! non-local term
 +#ifdef __FFTW2
 +  tempPotential = FFT_2(FFT_2(tmpRho**b) * w)
 +#else
-+  CALL FFT_NEW(FFT_STD_STATE,tmpRho**b,rhob)
++  CALL FFT_NEW(FFT_STD_STATE, tmpRho**b, rhob)
 +  rhob = rhob * w
-+  CALL FFT_NEW(FFT_STD_STATE,rhob,tempPotential)
++  CALL FFT_NEW(FFT_STD_STATE, rhob, tempPotential)
 +#endif
 +
-+  ! I don't think we need the factors of cTF due to the definition of the free energy
-+  ! Compare WGC paper and SD paper definitions of the non-local component
-+  ! Original can be found in KEDF_WT.f90
++  ! factors of c_TF isn't required due to the definition of the free energy
++  ! compare WGC paper and SDF paper definitions of the non-local component
++  ! original can be found in KEDF_WT.f90
 +  IF (calcEnergy) THEN
 +    NLenergy = SUM(tmpRho**a * tempPotential)
 +  ENDIF
 +
-+  ! I don't think we need the factors of cTF due to the definition of the free energy
-+  ! Compare WGC paper and SD paper definitions of the non-local component
++  ! see comment above
 +#ifdef __FFTW2
-+  tempPotential = (a * tmpRho**(a-1._DP) * tempPotential +&
-+         b * tmpRho**(b-1._DP) * FFT_2(FFT_2(tmpRho**a) * w))
++  tempPotential = (a * tmpRho**(a - 1._DP) * tempPotential +&
++         b * tmpRho**(b - 1._DP) * FFT_2(FFT_2(tmpRho**a) * w))
 +#else
-+  CALL FFT_NEW(FFT_STD_STATE,tmpRho**a,rhoa)
++  CALL FFT_NEW(FFT_STD_STATE, tmpRho**a, rhoa)
 +  rhoa = rhoa * w
-+  CALL FFT_NEW(FFT_STD_STATE,rhoa,tempPotential2)
-+  tempPotential = (a * tmpRho**(a-1._DP) * tempPotential +&
-+         b * tmpRho**(b-1._DP) * tempPotential2)
++  CALL FFT_NEW(FFT_STD_STATE, rhoa, tempPotential2)
++  tempPotential = (a * tmpRho**(a - 1._DP) * tempPotential +&
++         b * tmpRho**(b - 1._DP) * tempPotential2)
 +#endif
 +  potential = potential + tempPotential
 +
@@ -240,21 +255,10 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/FS_GGA.f90 OFQE2.0.1_patche
  SUBROUTINE FGGAVT84F(s2,F,dFds2,igga)
  !------------------------------------------------------------------------------
  ! DESCRIPTION:
-diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/KEDF_WTkernel.f90 OFQE2.0.1_patched/PROFESS3.0m5/Source/KEDF_WTkernel.f90
---- OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/KEDF_WTkernel.f90	2014-12-01 20:18:02.000000000 +0000
-+++ OFQE2.0.1_patched/PROFESS3.0m5/Source/KEDF_WTkernel.f90	2021-06-22 22:12:26.000000000 +0100
-@@ -22,35 +22,41 @@
- !
- !------------------------------------------------------------------------------
- 
--  USE CONSTANTS, ONLY: DP, PI 
-+  USE CONSTANTS, ONLY: DP, PI
-   USE FOURIER, ONLY: FFT
-   USE SYS, ONLY: rho0
-   USE SYS, ONLY: rhoS
-   USE MathFunctions, ONLY: LindG
--  USE PlaneWave, ONLY: qTable 
-+  USE PlaneWave, ONLY: qTable
+diff -Narub PROFESS3.0m5B_old/KEDF_WTkernel.f90 PROFESS3.0m5B/KEDF_WTkernel.f90
+--- PROFESS3.0m5B_old/KEDF_WTkernel.f90	2023-10-26 17:09:40.000000000 +0100
++++ PROFESS3.0m5B/KEDF_WTkernel.f90	2023-10-26 16:36:11.000000000 +0100
+@@ -31,6 +31,8 @@
    USE MPI_Functions
    USE OutputFiles
    USE OUTPUT, ONLY: WrtOut
@@ -263,19 +267,10 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/KEDF_WTkernel.f90 OFQE2.0.1
  
    IMPLICIT NONE
  
--                    !>> INTERNAL VARIABLES <<!  
-+                    !>> INTERNAL VARIABLES <<!
- 
--  REAL(KIND=DP) :: alpha = -100.0_DP  
-+  REAL(KIND=DP) :: alpha = -100.0_DP
-   ! Exponent to rho left of the kernel in WT and WGC.
-   !
--  REAL(KIND=DP) :: beta = -100.0_DP   
-+  REAL(KIND=DP) :: beta = -100.0_DP
+@@ -43,6 +45,10 @@
    ! Exponent to rho on the right side of the kernel in WT and WGC.
    !
--  REAL(KIND=DP), DIMENSION(:,:,:,:), ALLOCATABLE :: keKernel 
-+  REAL(KIND=DP), DIMENSION(:,:,:,:), ALLOCATABLE :: keKernel
+   REAL(KIND=DP), DIMENSION(:,:,:,:), ALLOCATABLE :: keKernel 
 +  ! --> TWY
 +  ! Kernel for non-local component of vW
 +  REAL(KIND=DP), DIMENSION(:,:,:), ALLOCATABLE :: keKernelB
@@ -283,16 +278,6 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/KEDF_WTkernel.f90 OFQE2.0.1
  
    ! When WT and WGC w/ periodic b.c., stored in recip space.
  
-   ! rinc is emperically determined. 0.1 seems to be
--  ! converged w.r.t. 0.01 for a single atom in vacuum by 
-+  ! converged w.r.t. 0.01 for a single atom in vacuum by
-   ! .004 meV/atom. This is no guarantee for other systems, though.
-   REAL(KIND=DP), PARAMETER :: rinc = 0.1_DP
--  REAL(KIND=DP), PARAMETER :: maxr4K2 = 500._DP        
-+  REAL(KIND=DP), PARAMETER :: maxr4K2 = 500._DP
-   ! Past this number, we will use the analytical formula for K_II.
-   REAL(KIND=DP), ALLOCATABLE, DIMENSION(:) :: wtKernelr
-   REAL(KIND=DP), ALLOCATABLE, DIMENSION(:) :: wtKernelFr
 @@ -73,6 +79,7 @@
    REAL(KIND=DP) :: addValue
    REAL(KIND=DP) :: rNorm
@@ -301,32 +286,31 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/KEDF_WTkernel.f90 OFQE2.0.1
  
  CONTAINS
  
-@@ -152,62 +159,1663 @@
+@@ -146,12 +153,13 @@
+ !
+ !------------------------------------------------------------------------------
+ ! REVISION LOG:
+-!
++! 01-01-2022: TWY: Added functionality for FNLSD functional
+ !------------------------------------------------------------------------------
+ 
    USE KEDF_TF, ONLY: lambda
    USE KEDF_VW, ONLY: mu
    USE OUTPUT, ONLY: outputKernel
-+  USE OUTPUTFILES, ONLY : &
-+  outputUnit
++  USE OUTPUTFILES, ONLY : outputUnit
  
    IMPLICIT NONE
--                    !>> EXTERNAL VARIABLES <<!  
-+                    !>> EXTERNAL VARIABLES <<!
- 
--  INTEGER :: n_eta 
-+  INTEGER :: n_eta
-   ! how many eta points I would like to print
-   !
--  INTEGER :: ie    
-+  INTEGER :: ie
-   ! the counter
-   !
--  REAL(KIND=DP) :: d_eta 
-+  REAL(KIND=DP) :: d_eta
+                     !>> EXTERNAL VARIABLES <<!  
+@@ -165,7 +173,101 @@
+   REAL(KIND=DP) :: d_eta 
    ! delta eta
    !
 +  ! --> TWY
-+  REAL(KIND=DP) :: tkF, kF, coeff, X_TF, tred0, dtreddn0, y0, eta0, f0, dfdy0, dydt0, dfdt0, X_0, abserr, Imh, tempX_0
-+  REAL(kind=DP), DIMENSION(1,1,1) :: y0temp, f0temp, eta0temp, dfdy0temp, Imhtemp, d2FdY20, H0, dHdY0, d2HdY20
++  REAL(KIND=DP) :: tkF, kF, coeff, X_TF, tred0, dtreddn0, y0, eta0, &
++    f0, dfdy0, dydt0, dfdt0, X_0, abserr, Imh, tempX_0
++  ! need to be 3D arrays for FPERROT2
++  REAL(kind=DP), DIMENSION(1,1,1) :: y0temp, f0temp, eta0temp, dfdy0temp, &
++    Imhtemp, d2FdY20, H0, dHdY0, d2HdY20
 +  REAL(kind=DP), parameter :: &
 +    one = 1._DP,&
 +    two = 2._DP,&
@@ -345,209 +329,156 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/KEDF_WTkernel.f90 OFQE2.0.1
 +  COMPLEX(kind=DP), DIMENSION(k1G, k2G, k3G) :: X_vW, invX_vW, &
 +    cutf
 +
++  ! Sjostrom-Daligault non-interacting free energy functional (FNLSD)
 +  IF(kinetic .eq. 1200) THEN
 +
-+    temperHa=temper/11604.5_DP/27.211396132_DP !100 K--> eV--> Hartree
++    temperHa = temper / 11604.5_DP / 27.211396132_DP ! 100 K --> eV --> Hartree
 +    kF = (3._DP * rho0 * pi**2)**(onethird)
-+    tkF = 2._DP*(3._DP * rho0 * pi**2)**(onethird)
-+    coeff = 3._DP/10._DP*(3._DP*pi**2)**(twothird)
++    tkF = 2._DP * (3._DP * rho0 * pi**2)**(onethird)
++    coeff = 3._DP / 10._DP * (3._DP * pi**2)**(twothird)
 +
-+    tred0 = temperHa/((3._DP*PI**2*rho0)**twothird/two) !reduced temp (temper/tempF is el. temperature in a.u.)
-+    dtreddn0 = -twothird*tred0/rho0 ! (dt/dn)
-+    y0 = twothird/tred0**threehalf!y=2/3/t_red^(3/2)
++    tred0 = temperHa / ((3._DP * PI**2 * rho0)**twothird / two) ! reduced temp (temper / tempF is el. temperature in a.u.)
++    dtreddn0 = -twothird * tred0 / rho0 ! (dt/dn)
++    y0 = twothird / tred0**threehalf ! y = 2 / 3 / t_red^(3/2)
++
 +    ! FPERROT2 requires rank-3 array as input, so this is a naive way of doing it
-+    y0temp(1,1,1) = y0
-+    CALL FPERROT2(Y0temp,F0temp,dFdY0temp,d2FdY20,H0,dHdY0,d2HdY20)
-+    f0 = F0temp(1,1,1)
-+    dfdy0 = dFdY0temp(1,1,1)
-+    dydt0=(-threehalf)*y0/tred0         ! dy/dt=-3/2 * y/t
-+    dfdt0=dfdy0*dydt0
++    y0temp(1, 1, 1) = y0
++    CALL FPERROT2(y0temp, f0temp, dfdy0temp, d2fdy20, h0, dhdy0, d2hdy20)
++
++    f0 = F0temp(1, 1, 1)
++    dfdy0 = dFdY0temp(1, 1, 1)
++    dydt0 = (-threehalf) * y0 / tred0 ! dy/dt=-3/2 * y/t
++    dfdt0 = dfdy0 * dydt0
++
 +    ! mu0 is equal to the TF potential at density rho0
-+    mu0 = (coeff * fivethird * rho0**twothird) * &  ! v_TF0 *
-+                 (fivethird * tred0 * f0) + &                 ! 5/3 * t * f(t)
-+                  fivethird * coeff*rho0**fivethird * dtreddn0 * &            ! 5/3 * tau_0 * (dt/dn) *
-+                (f0+tred0*dfdt0)                               ! (f(t)+t * df(t)/dt)
++    mu0 = (coeff * fivethird * rho0**twothird) * &                   ! v_TF0 *
++                 (fivethird * tred0 * f0) + &                        ! 5/3 * t * f(t)
++                  fivethird * coeff * rho0**fivethird * dtreddn0 * & ! 5/3 * tau_0 * (dt/dn) *
++                (f0 + tred0 * dfdt0)                                 ! (f(t) + t * df(t)/dt)
 +
-+    ! Janky way of inputing a scalar into a SUBROUTINE that requires an array
-+    eta0 = mu0/temperHa
-+    eta0temp(1,1,1) = eta0
-+    CALL FDINTEGRALmh(eta0temp,Imhtemp)
-+    Imh = Imhtemp(1,1,1)
++    eta0 = mu0 / temperHa
++    eta0temp(1, 1, 1) = eta0
++    CALL FDINTEGRALmh(eta0temp, Imhtemp) ! Fermi-Dirac integral of order alpha = -1/2
++    Imh = Imhtemp(1, 1, 1)
 +
-+    X_TF = -(1._DP/(2._DP*pi*pi))*(2._DP*temperHa)**(1._DP/2._DP)*Imh ! Thomas-Fermi response function
++    ! Thomas-Fermi response function
++    X_TF = -(1._DP / (2._DP * pi * pi)) * (2._DP * temperHa)**(1._DP / 2._DP) * Imh
 +
 +    ! X_vW(1,1,1) is infinity due to qTable(1,1,1)=0. Since only X_vW^-1 is needed, this
 +    ! term will be 0 anyway, so can either throw away, or use LindG function with inbuilt
-+    ! small q behaviour. Test both methods to check they give the same result.
-+    X_vW = -(4._DP*kF**3._DP)/(3._DP*pi*pi*qTable*qTable) ! von-Weizsacker response function
++    ! small q behaviour.
++    ! von-Weizsacker response function
++    X_vW = -(4._DP * kF**3._DP) / (3._DP * pi * pi * qTable * qTable)
 +
 +    ! Setting X_vW(1,1,1) = 0 to avoid infinity in X_vW^-1
-+    ! This might not fix the problem as there is a X_vW^-1 in the denominator as well
-+    invX_vW = 1._DP/X_vW
-+    invX_vW(1,1,1) = 0._DP
++    invX_vW = 1._DP / X_vW
++    invX_vW(1, 1, 1) = 0._DP
 +
 +
-+    cutf = EXP(-(qTable*qTable)/(16._DP*kF*kF))
++    cutf = EXP(-(qTable * qTable) / (16._DP * kF * kF))
 +
-+    !write(outputUnit,*) "mu0 = ",mu0
-+    DO i=1,SIZE(X_vW,1)
-+      DO j=1,SIZE(X_vW,2)
-+        DO k=1,SIZE(X_vW,3)
-+          q = REAL(qTable(i,j,k),DP)
-+          tempX_0 = (1._DP+TANH(mu0/(2._DP*temperHa)))*LindT0(mu0)*(4._DP*temperHa)/2._DP
-+          !IF(j .EQ. 1 .AND. k .EQ. 1) THEN
-+            !write(outputUnit,*) "LindT0(mu0)(",i,",",j,",",k,") = ",LindT0(mu0)
-+          !ENDIF
++    ! calculate non-local vW and non-local contr. kernels
++    DO i=1,SIZE(X_vW, 1)
++      DO j=1,SIZE(X_vW, 2)
++        DO k=1,SIZE(X_vW, 3)
++          q = REAL(qTable(i, j, k), DP)
++          tempX_0 = (1._DP + TANH(mu0 / (2._DP * temperHa))) * LindT0(mu0) &
++                    * (4._DP * temperHa) / 2._DP
++          ! semi-infinite integral (0, inf) of finite-T Lindhard function
 +          CALL qagi(LindT0mmu, 0._DP, 1, 1.49E-06, 0._DP, X_0, abserr, neval, ier)
 +          X_0 = X_0 + tempX_0
-+          !write(outputUnit,*) "X_0(",i,",",j,",",k,") = ",X_0
-+          !X_0 = REAL(X_0_SP,DP)
-+          keKernel(i,j,k,1) = (REAL(cutf(i,j,k),DP))*(-1._DP/X_0 + 1._DP/X_TF + REAL(invX_vW(i,j,k),DP))/(2._DP*a*b*rho0**(a+b-2._DP))
-+          !IF(j .EQ. 1 .AND. k .EQ. 1) THEN
-+            !write(outputUnit,*) "q(",i,",",j,",",k,") = ",q
-+            !write(outputUnit,*) "tempX_0(",i,",",j,",",k,") = ",tempX_0
-+            !write(outputUnit,*) "X_0(",i,",",j,",",k,") = ",X_0
-+            !write(outputUnit,*) "w(",i,",",j,",",k,") = ",keKernel(i,j,k,1)
-+          !ENDIF
-+          keKernelB(i,j,k) = (REAL(cutf(i,j,k),DP)-1._DP)*(-1._DP/X_0 + 1._DP/X_TF + REAL(invX_vW(i,j,k),DP))/(REAL(invX_vW(i,j,k),DP))
++          keKernel(i, j, k, 1) = (REAL(cutf(i, j, k), DP))*(-1._DP/X_0 + 1._DP/X_TF &
++                                 + REAL(invX_vW(i, j, k), DP))/(2._DP * a * b &
++                                 * rho0**(a + b - 2._DP))
++          keKernelB(i, j, k) = (REAL(cutf(i, j, k), DP) - 1._DP) * (-1._DP/X_0 + 1._DP/X_TF &
++                               + REAL(invX_vW(i, j, k), DP)) / (REAL(invX_vW(i, j, k), DP))
 +        ENDDO
 +      ENDDO
 +    ENDDO
++
++    keKernel(1, 1, 1, 1) = 0._DP
++    keKernelB(1, 1, 1) = 0._DP
  
--  ! outputKernel can be set in the input file.
--  ! only the main processor is allowed to write.
--  IF(outputKernel .AND. rankGlobal==0) THEN
--
--    OPEN (unit=1985, file='KEDF-kernel-G.dat', status = 'unknown', form='formatted', action='write')
--    WRITE(outputUnit,*) "Print the G space Wang-Teter KEDF kernels into KEDF-kernel-G.dat "
--    WRITE(1985,'(A)') "4"
--    WRITE(1985,'(ES22.15, A)') tkF
--    WRITE(1985,'(ES22.15, A)') rhoS
--
--    ! set the value here, generally this is large enough for
--    ! restart calculations
--    n_eta = 50000
--    d_eta = 0.001
-+    keKernel(1,1,1,1) = 0._DP
-+    keKernelB(1,1,1) = 0._DP
 +  ELSE
-+    ! outputKernel can be set in the input file.
-+    ! only the main processor is allowed to write.
-+    IF(outputKernel .AND. rankGlobal==0) THEN
-+
-+      OPEN (unit=1985, file='KEDF-kernel-G.dat', status = 'unknown', form='formatted', action='write')
-+      WRITE(outputUnit,*) "Print the G space Wang-Teter KEDF kernels into KEDF-kernel-G.dat "
-+      WRITE(1985,'(A)') "4"
-+      WRITE(1985,'(ES22.15, A)') tkF
-+      WRITE(1985,'(ES22.15, A)') rhoS
-+
-+      ! set the value here, generally this is large enough for
-+      ! restart calculations
-+      n_eta = 50000
-+      d_eta = 0.001
-+
-+      WRITE(1985,'(I8, A)') n_eta
-+
-+      DO ie=1, n_eta
-+        WRITE(1985,'(2ES20.12)') ie*d_eta, LindG(ie*d_eta,lambda,mu)
-+      ENDDO
-+
-+      CLOSE(1985)
-+      outputKernel=.FALSE.
-+
-+    ENDIF
-+
-+
-+    WRITE(outputUnit,*) "Fill the 3D Wang-Teter kernel in G space"
-+    ! fill the Wang-Teter kernel
-+    DO i3=1, SIZE(keKernel,3)
-+      DO i2=1, SIZE(keKernel,2)
-+        DO ix=1, SIZE(keKernel,1)
-+          keKernel(ix,i2,i3,1) = LindG(qTable(ix,i2,i3)/tkF,lambda,mu) * coef
-+        END DO ! ix
-+      END DO ! i2
-+    ENDDO ! i3
+   ! outputKernel can be set in the input file.
+   ! only the main processor is allowed to write.
+   IF(outputKernel .AND. rankGlobal==0) THEN
+@@ -202,12 +304,1527 @@
+       END DO ! ix
+     END DO ! i2
+   ENDDO ! i3
 +  ENDIF
  
--    WRITE(1985,'(I8, A)') n_eta
-+  RETURN
+   RETURN
  
--    DO ie=1, n_eta
--      WRITE(1985,'(2ES20.12)') ie*d_eta, LindG(ie*d_eta,lambda,mu)
--    ENDDO
-+END SUBROUTINE FillWT_ReciprocalSpace
+ END SUBROUTINE FillWT_ReciprocalSpace
  
--    CLOSE(1985)
--    outputKernel=.FALSE.
 +FUNCTION LindT0(E)
++  ! finite-T Lindhard function for positive mu0
 +  REAL(KIND=DP), INTENT(IN) :: E
-+  REAL(KIND=DP) :: kF,eta,tkF,LindT0temp
++  REAL(KIND=DP) :: kF, eta, tkF, LindT0temp
 +  REAL(KIND=DP) :: LindT0
 +
 +  IF(E .lt. 0) THEN
 +    LindT0 = 0._DP
 +  ELSE
-+    kF = SQRT(2._DP*E)
-+    tkF = 2._DP*kF
-+    eta = q/(2._DP*kF)
-+    LindT0temp = -kF/(PI*PI*(LindG(q/tkF,1._DP,1._DP) + 3._DP*(q/tkF)**2 + 1._DP))
++    kF = SQRT(2._DP * E)
++    tkF = 2._DP * kF
++    eta = q / (2._DP * kF)
++    LindT0temp = -kF / (PI * PI * (LindG(q / tkF, 1._DP, 1._DP) + 3._DP &
++                 * (q / tkF)**2 + 1._DP))
 +
-+    LindT0 = LindT0temp/(4._DP*temperHa*COSH((E-mu0)/(2._DP*temperHa))**2)
++    LindT0 = LindT0temp / (4._DP * temperHa * COSH((E - mu0) / (2._DP * temperHa))**2)
 +    IF(LindT0 .ne. LindT0) THEN
 +      LindT0 = 0._DP
 +    ENDIF
 +  ENDIF
- 
++
 +END FUNCTION LindT0
 +
 +
 +FUNCTION LindT0mmu(E)
++  ! finite-T Lindhard function for positive or negative mu0
 +  REAL(KIND=DP), INTENT(IN) :: E
-+  REAL(KIND=DP) :: kF,eta,tkF,LindT0temp
++  REAL(KIND=DP) :: kF, eta, tkF, LindT0temp
 +  REAL(KIND=DP) :: LindT0mmu
 +
 +  IF(E .lt. 0) THEN
 +    LindT0temp = 0._DP
 +  ELSE
-+    kF = SQRT(2._DP*E)
-+    tkF = 2._DP*kF
-+    eta = q/(2._DP*kF)
-+    LindT0temp = -kF/(PI*PI*(LindG(q/tkF,1._DP,1._DP) + 3._DP*(q/tkF)**2 + 1._DP))
++    kF = SQRT(2._DP * E)
++    tkF = 2._DP * kF
++    eta = q / (2._DP * kF)
++    LindT0temp = -kF / (PI * PI * (LindG(q / tkF, 1._DP, 1._DP) + 3._DP &
++                 * (q / tkF)**2 + 1._DP))
 +  ENDIF
++
 +  IF(mu0 .lt. 0) THEN
 +    LindT0temp = LindT0temp
 +  ELSE
-+    kF = SQRT(2._DP*mu0)
-+    tkF = 2._DP*kF
-+    eta = q/(2._DP*kF)
-+    LindT0temp = LindT0temp + (kF/(PI*PI*(LindG(q/tkF,1._DP,1._DP) + 3._DP*(q/tkF)**2 + 1._DP)))
++    kF = SQRT(2._DP * mu0)
++    tkF = 2._DP * kF
++    eta = q / (2._DP * kF)
++    LindT0temp = LindT0temp + (kF / (PI * PI * (LindG(q / tkF, 1._DP, 1._DP) &
++                 + 3._DP * (q / tkF)**2 + 1._DP)))
 +  ENDIF
++
 +  IF(E .lt. 0 .AND. mu0 .lt. 0) THEN
 +    LindT0mmu = 0._DP
 +  ELSE
-+    LindT0mmu = LindT0temp/(4._DP*temperHa*COSH((E-mu0)/(2._DP*temperHa))**2)
++    LindT0mmu = LindT0temp / (4._DP * temperHa * COSH((E - mu0) / (2._DP * temperHa))**2)
 +  ENDIF
++  
 +  IF(LindT0mmu .ne. LindT0mmu) THEN
 +    LindT0mmu = 0._DP
-   ENDIF
- 
++  ENDIF
++
 +END FUNCTION LindT0mmu
- 
--  WRITE(outputUnit,*) "Fill the 3D Wang-Teter kernel in G space"
--  ! fill the Wang-Teter kernel
--  DO i3=1, SIZE(keKernel,3)
--    DO i2=1, SIZE(keKernel,2)
--      DO ix=1, SIZE(keKernel,1)
--        keKernel(ix,i2,i3,1) = LindG(qTable(ix,i2,i3)/tkF,lambda,mu) * coef 
--      END DO ! ix
--    END DO ! i2
--  ENDDO ! i3
++
 +SUBROUTINE FDINTEGRALmh(x,Imh)
- 
--  RETURN
++
 +  !
- 
--END SUBROUTINE FillWT_ReciprocalSpace
++
 +  ! double precision rational minimax approximation of Fermi-Dirac integral of order k=-1/2
 +
 +  !
@@ -683,7 +614,7 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/KEDF_WTkernel.f90 OFQE2.0.1
 +      +t)))))))
 +
 +  elseif(x(i,j,k).lt.5.d0) then
-+
+ 
 +      t=0.3333333333333333333d0*(x(i,j,k)-2.d0)
 +
 +      fd=(4060.70753404118265d0 &
@@ -1475,7 +1406,7 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/KEDF_WTkernel.f90 OFQE2.0.1
 +!                    integrand over (a,b), i.e. to i/(b-a)
 +!
 +  implicit none
- 
++
 +  real a
 +  real absc
 +  real absc1
@@ -1606,7 +1537,7 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/KEDF_WTkernel.f90 OFQE2.0.1
 +end
 +
 +subroutine qsort ( limit, last, maxerr, ermax, elist, iord, nrmax )
- 
++
 +!*****************************************************************************80
 +!
 +!! QSORT maintains the order of a list of local error estimates.
@@ -2000,179 +1931,24 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/KEDF_WTkernel.f90 OFQE2.0.1
  
  SUBROUTINE FillWT_RestartFrom_GSpace(kernelFile, kernel, qNorm)
  !------------------------------------------------------------------------------
-diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/ReadInputFile.f90 OFQE2.0.1_patched/PROFESS3.0m5/Source/ReadInputFile.f90
---- OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/ReadInputFile.f90	2019-05-28 09:28:22.000000000 +0100
-+++ OFQE2.0.1_patched/PROFESS3.0m5/Source/ReadInputFile.f90	2022-03-14 16:04:37.261507563 +0000
-@@ -124,7 +124,7 @@
-   USE RhoOptimizers, ONLY: tole
-   USE RhoOptimizers, ONLY: usePreconditioner
-   USE RhoOptimizers, ONLY: cheatPot
--  USE RhoOptimizers, ONLY: fixedmag 
-+  USE RhoOptimizers, ONLY: fixedmag
- 
-   USE RhoDirCG, ONLY: cg_alg
-   USE RhoDirBFGS, ONLY : MBFGS ! parameter for lbfgs method
-@@ -892,121 +892,126 @@
- 
- ! 07 SEP 2015: old GGA functionals:
-           CASE("HVWTF","TFMUVW") ! TGGA: TTF+mu*hVW
--            kinetic = 1013 
-+            kinetic = 1013
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : TTF+mu*hVW'
-           CASE("TMC01","KST2") ! TGGA: TMCPBE2=KST2
--            kinetic = 1014 
-+            kinetic = 1014
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : KST2'
-           CASE("TGG01","PBETWF") ! TGGA: TPBETW
--            kinetic = 1015 
-+            kinetic = 1015
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : PBETWF'
- 
-           CASE("TAPBE","APBEF") ! APBEK
--            kinetic = 1047 
-+            kinetic = 1047
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : APBEF'
- 
--! 
-+!
-           CASE("VT84F","VT84FN") ! new implementation of VT84F
-             kinetic = 1101
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : VT84F'
--          CASE("VT84GN") ! 
-+          CASE("VT84GN") !
-             kinetic = 1102
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : VT84GN'
--          CASE("TVTPBE") ! 
-+          CASE("TVTPBE") !
-             kinetic = 1103
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : TVTPBE'
--          CASE("TWKST2") ! 
-+          CASE("TWKST2") !
-             kinetic = 1104
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : TWKST2'
--          CASE("TVT04M","VT84FM") ! 
-+          CASE("TVT04M","VT84FM") !
-             kinetic = 1105
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : VT84Fm'
--          CASE("MUKST2") ! 
-+          CASE("MUKST2") !
-             kinetic = 1106
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : muKST2'
--          CASE("MUVT84") ! 
-+          CASE("MUVT84") !
-             kinetic = 1107
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : muVT84F'
--          CASE("CMVT84") ! 
-+          CASE("CMVT84") !
-             kinetic = 1108
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : CmuVT84F'
- ! DEC 2014
--          CASE("P0910C") ! 
-+          CASE("P0910C") !
-             kinetic = 1109
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : P0910C'
- ! Feb 2015
--          CASE("P92") ! 
-+          CASE("P92") !
-             kinetic = 1110
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : P92'
--          CASE("E00") ! 
-+          CASE("E00") !
-             kinetic = 1111
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : E00'
-           CASE("PBE2") !  same as TMC01 or KST2, but different implementation
-             kinetic = 1112
-             WRITE(message, *) '(input) Non-interacting Free-Energy     : PBE2'
- ! MAY 2015
--          CASE("MUP64A","P64PR1") ! Pade[04,06] vers. A 
-+          CASE("MUP64A","P64PR1") ! Pade[04,06] vers. A
-             kinetic = 1113
--            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64A" 
-+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64A"
-             !CALL WrtOut(6,message)
-           CASE("MUP64B","P64PR2") ! Pade[04,06] vers. B
-             kinetic = 1114
--            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64B" 
-+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64B"
-             !CALL WrtOut(6,message)
-           CASE("MUP64C","P654P3") ! Pade[04,06] vers. C
-             kinetic = 1115
--            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64C" 
-+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64C"
-             !CALL WrtOut(6,message)
- ! JUNE 2015
-           CASE("VT84F1") ! VT84F with C1=mu - tunable parameter
-             kinetic = 1116
--            WRITE(message, *) "(input) Non-interacting Free-Energy     : VT84F1" 
-+            WRITE(message, *) "(input) Non-interacting Free-Energy     : VT84F1"
-             !CALL WrtOut(6,message)
-           CASE("MUP64D","P64PR3") ! Pade[04,06] vers. D
-             kinetic = 1117
--            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64D" 
-+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64D"
-             !CALL WrtOut(6,message)
-           CASE("PAD2PA") ! Pade[04,06] vers. D
-             kinetic = 1118
--            WRITE(message, *) "(input) Non-interacting Free-Energy     : PAD2PA" 
-+            WRITE(message, *) "(input) Non-interacting Free-Energy     : PAD2PA"
-             !CALL WrtOut(6,message)
-           CASE("PAD2PB") ! Pade[04,06] vers. D
-             kinetic = 1119
--            WRITE(message, *) "(input) Non-interacting Free-Energy     : PAD2PB" 
-+            WRITE(message, *) "(input) Non-interacting Free-Energy     : PAD2PB"
-             !CALL WrtOut(6,message)
-           CASE("MUP64F") ! Pade[04,06] vers. D
-             kinetic = 1120
--            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64F" 
-+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64F"
-             !CALL WrtOut(6,message)
--          CASE("MUP42A","P42PR2") ! Pade[04,06] vers. A 
-+          CASE("MUP42A","P42PR2") ! Pade[04,06] vers. A
-             kinetic = 1121
--            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP42A" 
-+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP42A"
-             !CALL WrtOut(6,message)
-           CASE("MUP64G","P64PR4") ! Pade[04,06] vers. D
-             kinetic = 1122
--            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64G" 
-+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64G"
-             !CALL WrtOut(6,message)
-           CASE("MUP64H") ! Pade[04,06] vers. H
-             kinetic = 1123
--            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64H" 
-+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64H"
-             !CALL WrtOut(6,message)
-           CASE("MUP42B") ! Pade[04,02] vers. B
-             kinetic = 1124
--            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP42B" 
-+            WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP42B"
-             !CALL WrtOut(6,message)
-           CASE("MUP64I") ! Pade[04,06] vers. I
-             kinetic = 1125
+diff -Narub PROFESS3.0m5B_old/ReadInputFile.f90 PROFESS3.0m5B/ReadInputFile.f90
+--- PROFESS3.0m5B_old/ReadInputFile.f90	2023-10-26 17:09:40.000000000 +0100
++++ PROFESS3.0m5B/ReadInputFile.f90	2023-10-26 16:48:49.000000000 +0100
+@@ -999,6 +999,11 @@
              WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64I"
              !CALL WrtOut(6,message)
  ! <-- VVK END
-+! --> TWY ADDED: APR 2021: Temperature dependent non-local non-interacting free-energy functionals
++! --> TWY ADDED: APR 2021: Temperature dependent non-local non-interacting free-energy functional
 +          CASE("SDF") ! Sjostrom & Daligault non-local functional
 +            kinetic = 1200
 +            WRITE(message, *) "(input) Non-interacting Free-Energy     : SDF"
 +! <-- TWY END
          CASE DEFAULT
            WRITE(message,*) 'Warning: Encountered unknown KINE argument ', TRIM(option)
--          CALL Error(6,message) 
-+          CALL Error(6,message)
-         END SELECT
-         CALL WrtOut(6,message)
- 
-       !-----------------------------------------------------------------------------
--      ! 22) Set the kinetic energy functional parameters.     
-+      ! 22) Set the kinetic energy functional parameters.
-       CASE("PARA")
-         READ(inputUnit, *, IOSTAT=fileStatus) keyword, option, tempReal
-         IF (fileStatus/=0) THEN
-diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/Report.f90 OFQE2.0.1_patched/PROFESS3.0m5/Source/Report.f90
---- OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/Report.f90	2019-05-28 09:28:22.000000000 +0100
-+++ OFQE2.0.1_patched/PROFESS3.0m5/Source/Report.f90	2022-03-14 16:04:51.171321561 +0000
+           CALL Error(6,message) 
+diff -Narub PROFESS3.0m5B_old/Report.f90 PROFESS3.0m5B/Report.f90
+--- PROFESS3.0m5B_old/Report.f90	2023-10-26 17:09:40.000000000 +0100
++++ PROFESS3.0m5B/Report.f90	2023-10-26 15:22:09.000000000 +0100
 @@ -428,6 +428,10 @@
        WRITE(outputUnit, 172) "Coefficient b4=lambda: ", lambda
        WRITE(outputUnit, 172) "Coefficient a6=nu: ", nu
@@ -2200,9 +1976,14 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/Report.f90 OFQE2.0.1_patche
    ! Print out Exchange Correlation Energy
    IF (exchangeCorrelationFunct == 1) &
      WRITE(outputUnit,10) "LDA Exch-Corr Energy", eVenergy(5), &
-diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/SetupKEDF.f90 OFQE2.0.1_patched/PROFESS3.0m5/Source/SetupKEDF.f90
---- OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/SetupKEDF.f90	2019-05-28 09:28:22.000000000 +0100
-+++ OFQE2.0.1_patched/PROFESS3.0m5/Source/SetupKEDF.f90	2022-03-14 16:05:03.084327219 +0000
+@@ -1412,4 +1423,3 @@
+ END SUBROUTINE FinalizeOutput
+ 
+ END MODULE Report
+-
+diff -Narub PROFESS3.0m5B_old/SetupKEDF.f90 PROFESS3.0m5B/SetupKEDF.f90
+--- PROFESS3.0m5B_old/SetupKEDF.f90	2023-10-26 17:09:40.000000000 +0100
++++ PROFESS3.0m5B/SetupKEDF.f90	2023-10-26 15:22:09.000000000 +0100
 @@ -90,7 +90,7 @@
    USE KEDF_TF, ONLY: lambda
    USE KEDF_VW, ONLY: mu
@@ -2212,7 +1993,7 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/SetupKEDF.f90 OFQE2.0.1_pat
    USE KEDF_WGCkernel, ONLY: firstOrderWGC
    USE KEDF_WGCkernel, ONLY: gamma
    USE KEDF_WGCkernel, ONLY: alpha5
-@@ -601,12 +601,36 @@
+@@ -601,6 +601,30 @@
      WRITE(logUnit,'(A,F10.4)') " Coefficient for TTF Fs is ", lambda
    CASE(1013:1125) !new TGGAPotentialPlus implementation, we do nothing so far
  ! <-- VVK
@@ -2241,40 +2022,11 @@ diff -Naur OFQE2.0.1_patched_cx1/PROFESS3.0m5/Source/SetupKEDF.f90 OFQE2.0.1_pat
 +    END IF
 +! <-- TWY
    CASE DEFAULT ! By default we do nothing.
--    
--    WRITE(message,*) "SetupFunctional: Please check your type of KEDF, ", kinetic 
-+
-+    WRITE(message,*) "SetupFunctional: Please check your type of KEDF, ", kinetic
-     CALL QUIT(message)
- 
--  END SELECT 
-+  END SELECT
- 
-   RETURN
- 
-@@ -656,20 +680,25 @@
-   CALL FillQTable(cell%cellRecip)
- 
-   SELECT CASE(kinetic)
--    ! 4: WT, 17: EVT 
-+    ! 4: WT, 17: EVT
-     CASE(4,17)
--      IF (.NOT.hold0) rho0 = tmpRho 
-+      IF (.NOT.hold0) rho0 = tmpRho
-       CALL FillWT()
-     ! 5: WGC, 12: WGCD, 18: EVC
-     CASE(5,12,18)
--      IF (.NOT.hold0) rho0 = tmpRho 
--      IF (.NOT.holdS) rhoS = mrhos * tmpRho 
-+      IF (.NOT.hold0) rho0 = tmpRho
-+      IF (.NOT.holdS) rhoS = mrhos * tmpRho
-       CALL FillWGC()
-     ! 10: CAT
-     CASE(10)
--      IF (.NOT.hold0) rho0 = tmpRho 
--      IF (.NOT.holdS) rhoS = tmpRho 
-+      IF (.NOT.hold0) rho0 = tmpRho
-+      IF (.NOT.holdS) rhoS = tmpRho
+     
+     WRITE(message,*) "SetupFunctional: Please check your type of KEDF, ", kinetic 
+@@ -670,6 +694,11 @@
+       IF (.NOT.hold0) rho0 = tmpRho 
+       IF (.NOT.holdS) rhoS = tmpRho 
        CALL FillCAT()
 +    ! --> TWY
 +    CASE(1200)

@@ -153,14 +153,13 @@ SUBROUTINE FillWT_ReciprocalSpace()
 !
 !------------------------------------------------------------------------------
 ! REVISION LOG:
-!
+! 01-01-2022: TWY: Added functionality for FNLSD functional
 !------------------------------------------------------------------------------
 
   USE KEDF_TF, ONLY: lambda
   USE KEDF_VW, ONLY: mu
   USE OUTPUT, ONLY: outputKernel
-  USE OUTPUTFILES, ONLY : &
-  outputUnit
+  USE OUTPUTFILES, ONLY : outputUnit
 
   IMPLICIT NONE
                     !>> EXTERNAL VARIABLES <<!
@@ -175,8 +174,11 @@ SUBROUTINE FillWT_ReciprocalSpace()
   ! delta eta
   !
   ! --> TWY
-  REAL(KIND=DP) :: tkF, kF, coeff, X_TF, tred0, dtreddn0, y0, eta0, f0, dfdy0, dydt0, dfdt0, X_0, abserr, Imh, tempX_0
-  REAL(kind=DP), DIMENSION(1,1,1) :: y0temp, f0temp, eta0temp, dfdy0temp, Imhtemp, d2FdY20, H0, dHdY0, d2HdY20
+  REAL(KIND=DP) :: tkF, kF, coeff, X_TF, tred0, dtreddn0, y0, eta0, &
+    f0, dfdy0, dydt0, dfdt0, X_0, abserr, Imh, tempX_0
+  ! need to be 3D arrays for FPERROT2
+  REAL(kind=DP), DIMENSION(1,1,1) :: y0temp, f0temp, eta0temp, dfdy0temp, &
+    Imhtemp, d2FdY20, H0, dHdY0, d2HdY20
   REAL(kind=DP), parameter :: &
     one = 1._DP,&
     two = 2._DP,&
@@ -195,77 +197,76 @@ SUBROUTINE FillWT_ReciprocalSpace()
   COMPLEX(kind=DP), DIMENSION(k1G, k2G, k3G) :: X_vW, invX_vW, &
     cutf
 
+  ! Sjostrom-Daligault non-interacting free energy functional (FNLSD)
   IF(kinetic .eq. 1200) THEN
 
-    temperHa=temper/11604.5_DP/27.211396132_DP !100 K--> eV--> Hartree
+    temperHa = temper / 11604.5_DP / 27.211396132_DP ! 100 K --> eV --> Hartree
     kF = (3._DP * rho0 * pi**2)**(onethird)
-    tkF = 2._DP*(3._DP * rho0 * pi**2)**(onethird)
-    coeff = 3._DP/10._DP*(3._DP*pi**2)**(twothird)
+    tkF = 2._DP * (3._DP * rho0 * pi**2)**(onethird)
+    coeff = 3._DP / 10._DP * (3._DP * pi**2)**(twothird)
 
-    tred0 = temperHa/((3._DP*PI**2*rho0)**twothird/two) !reduced temp (temper/tempF is el. temperature in a.u.)
-    dtreddn0 = -twothird*tred0/rho0 ! (dt/dn)
-    y0 = twothird/tred0**threehalf!y=2/3/t_red^(3/2)
+    tred0 = temperHa / ((3._DP * PI**2 * rho0)**twothird / two) ! reduced temp (temper / tempF is el. temperature in a.u.)
+    dtreddn0 = -twothird * tred0 / rho0 ! (dt/dn)
+    y0 = twothird / tred0**threehalf ! y = 2 / 3 / t_red^(3/2)
+
     ! FPERROT2 requires rank-3 array as input, so this is a naive way of doing it
-    y0temp(1,1,1) = y0
-    CALL FPERROT2(Y0temp,F0temp,dFdY0temp,d2FdY20,H0,dHdY0,d2HdY20)
-    f0 = F0temp(1,1,1)
-    dfdy0 = dFdY0temp(1,1,1)
-    dydt0=(-threehalf)*y0/tred0         ! dy/dt=-3/2 * y/t
-    dfdt0=dfdy0*dydt0
+    y0temp(1, 1, 1) = y0
+    CALL FPERROT2(y0temp, f0temp, dfdy0temp, d2fdy20, h0, dhdy0, d2hdy20)
+
+    f0 = F0temp(1, 1, 1)
+    dfdy0 = dFdY0temp(1, 1, 1)
+    dydt0 = (-threehalf) * y0 / tred0 ! dy/dt=-3/2 * y/t
+    dfdt0 = dfdy0 * dydt0
+
     ! mu0 is equal to the TF potential at density rho0
-    mu0 = (coeff * fivethird * rho0**twothird) * &  ! v_TF0 *
-                 (fivethird * tred0 * f0) + &                 ! 5/3 * t * f(t)
-                  fivethird * coeff*rho0**fivethird * dtreddn0 * &            ! 5/3 * tau_0 * (dt/dn) *
-                (f0+tred0*dfdt0)                               ! (f(t)+t * df(t)/dt)
+    mu0 = (coeff * fivethird * rho0**twothird) * &                   ! v_TF0 *
+                 (fivethird * tred0 * f0) + &                        ! 5/3 * t * f(t)
+                  fivethird * coeff * rho0**fivethird * dtreddn0 * & ! 5/3 * tau_0 * (dt/dn) *
+                (f0 + tred0 * dfdt0)                                 ! (f(t) + t * df(t)/dt)
 
-    ! Janky way of inputing a scalar into a SUBROUTINE that requires an array
-    eta0 = mu0/temperHa
-    eta0temp(1,1,1) = eta0
-    CALL FDINTEGRALmh(eta0temp,Imhtemp)
-    Imh = Imhtemp(1,1,1)
+    eta0 = mu0 / temperHa
+    eta0temp(1, 1, 1) = eta0
+    CALL FDINTEGRALmh(eta0temp, Imhtemp) ! Fermi-Dirac integral of order alpha = -1/2
+    Imh = Imhtemp(1, 1, 1)
 
-    X_TF = -(1._DP/(2._DP*pi*pi))*(2._DP*temperHa)**(1._DP/2._DP)*Imh ! Thomas-Fermi response function
+    ! Thomas-Fermi response function
+    X_TF = -(1._DP / (2._DP * pi * pi)) * (2._DP * temperHa)**(1._DP / 2._DP) * Imh
 
     ! X_vW(1,1,1) is infinity due to qTable(1,1,1)=0. Since only X_vW^-1 is needed, this
     ! term will be 0 anyway, so can either throw away, or use LindG function with inbuilt
-    ! small q behaviour. Test both methods to check they give the same result.
-    X_vW = -(4._DP*kF**3._DP)/(3._DP*pi*pi*qTable*qTable) ! von-Weizsacker response function
+    ! small q behaviour.
+    ! von-Weizsacker response function
+    X_vW = -(4._DP * kF**3._DP) / (3._DP * pi * pi * qTable * qTable)
 
     ! Setting X_vW(1,1,1) = 0 to avoid infinity in X_vW^-1
-    ! This might not fix the problem as there is a X_vW^-1 in the denominator as well
-    invX_vW = 1._DP/X_vW
-    invX_vW(1,1,1) = 0._DP
+    invX_vW = 1._DP / X_vW
+    invX_vW(1, 1, 1) = 0._DP
 
 
-    cutf = EXP(-(qTable*qTable)/(16._DP*kF*kF))
+    cutf = EXP(-(qTable * qTable) / (16._DP * kF * kF))
 
-    !write(outputUnit,*) "mu0 = ",mu0
-    DO i=1,SIZE(X_vW,1)
-      DO j=1,SIZE(X_vW,2)
-        DO k=1,SIZE(X_vW,3)
-          q = REAL(qTable(i,j,k),DP)
-          tempX_0 = (1._DP+TANH(mu0/(2._DP*temperHa)))*LindT0(mu0)*(4._DP*temperHa)/2._DP
-          !IF(j .EQ. 1 .AND. k .EQ. 1) THEN
-            !write(outputUnit,*) "LindT0(mu0)(",i,",",j,",",k,") = ",LindT0(mu0)
-          !ENDIF
+    ! calculate non-local vW and non-local contr. kernels
+    DO i=1,SIZE(X_vW, 1)
+      DO j=1,SIZE(X_vW, 2)
+        DO k=1,SIZE(X_vW, 3)
+          q = REAL(qTable(i, j, k), DP)
+          tempX_0 = (1._DP + TANH(mu0 / (2._DP * temperHa))) * LindT0(mu0) &
+                    * (4._DP * temperHa) / 2._DP
+          ! semi-infinite integral (0, inf) of finite-T Lindhard function
           CALL qagi(LindT0mmu, 0._DP, 1, 1.49E-06, 0._DP, X_0, abserr, neval, ier)
           X_0 = X_0 + tempX_0
-          !write(outputUnit,*) "X_0(",i,",",j,",",k,") = ",X_0
-          !X_0 = REAL(X_0_SP,DP)
-          keKernel(i,j,k,1) = (REAL(cutf(i,j,k),DP))*(-1._DP/X_0 + 1._DP/X_TF + REAL(invX_vW(i,j,k),DP))/(2._DP*a*b*rho0**(a+b-2._DP))
-          !IF(j .EQ. 1 .AND. k .EQ. 1) THEN
-            !write(outputUnit,*) "q(",i,",",j,",",k,") = ",q
-            !write(outputUnit,*) "tempX_0(",i,",",j,",",k,") = ",tempX_0
-            !write(outputUnit,*) "X_0(",i,",",j,",",k,") = ",X_0
-            !write(outputUnit,*) "w(",i,",",j,",",k,") = ",keKernel(i,j,k,1)
-          !ENDIF
-          keKernelB(i,j,k) = (REAL(cutf(i,j,k),DP)-1._DP)*(-1._DP/X_0 + 1._DP/X_TF + REAL(invX_vW(i,j,k),DP))/(REAL(invX_vW(i,j,k),DP))
+          keKernel(i, j, k, 1) = (REAL(cutf(i, j, k), DP))*(-1._DP/X_0 + 1._DP/X_TF &
+                                 + REAL(invX_vW(i, j, k), DP))/(2._DP * a * b &
+                                 * rho0**(a + b - 2._DP))
+          keKernelB(i, j, k) = (REAL(cutf(i, j, k), DP) - 1._DP) * (-1._DP/X_0 + 1._DP/X_TF &
+                               + REAL(invX_vW(i, j, k), DP)) / (REAL(invX_vW(i, j, k), DP))
         ENDDO
       ENDDO
     ENDDO
 
-    keKernel(1,1,1,1) = 0._DP
-    keKernelB(1,1,1) = 0._DP
+    keKernel(1, 1, 1, 1) = 0._DP
+    keKernelB(1, 1, 1) = 0._DP
+
   ELSE
     ! outputKernel can be set in the input file.
     ! only the main processor is allowed to write.
@@ -310,19 +311,21 @@ SUBROUTINE FillWT_ReciprocalSpace()
 END SUBROUTINE FillWT_ReciprocalSpace
 
 FUNCTION LindT0(E)
+  ! finite-T Lindhard function for positive mu0
   REAL(KIND=DP), INTENT(IN) :: E
-  REAL(KIND=DP) :: kF,eta,tkF,LindT0temp
+  REAL(KIND=DP) :: kF, eta, tkF, LindT0temp
   REAL(KIND=DP) :: LindT0
 
   IF(E .lt. 0) THEN
     LindT0 = 0._DP
   ELSE
-    kF = SQRT(2._DP*E)
-    tkF = 2._DP*kF
-    eta = q/(2._DP*kF)
-    LindT0temp = -kF/(PI*PI*(LindG(q/tkF,1._DP,1._DP) + 3._DP*(q/tkF)**2 + 1._DP))
+    kF = SQRT(2._DP * E)
+    tkF = 2._DP * kF
+    eta = q / (2._DP * kF)
+    LindT0temp = -kF / (PI * PI * (LindG(q / tkF, 1._DP, 1._DP) + 3._DP &
+                 * (q / tkF)**2 + 1._DP))
 
-    LindT0 = LindT0temp/(4._DP*temperHa*COSH((E-mu0)/(2._DP*temperHa))**2)
+    LindT0 = LindT0temp / (4._DP * temperHa * COSH((E - mu0) / (2._DP * temperHa))**2)
     IF(LindT0 .ne. LindT0) THEN
       LindT0 = 0._DP
     ENDIF
@@ -332,31 +335,37 @@ END FUNCTION LindT0
 
 
 FUNCTION LindT0mmu(E)
+  ! finite-T Lindhard function for positive or negative mu0
   REAL(KIND=DP), INTENT(IN) :: E
-  REAL(KIND=DP) :: kF,eta,tkF,LindT0temp
+  REAL(KIND=DP) :: kF, eta, tkF, LindT0temp
   REAL(KIND=DP) :: LindT0mmu
 
   IF(E .lt. 0) THEN
     LindT0temp = 0._DP
   ELSE
-    kF = SQRT(2._DP*E)
-    tkF = 2._DP*kF
-    eta = q/(2._DP*kF)
-    LindT0temp = -kF/(PI*PI*(LindG(q/tkF,1._DP,1._DP) + 3._DP*(q/tkF)**2 + 1._DP))
+    kF = SQRT(2._DP * E)
+    tkF = 2._DP * kF
+    eta = q / (2._DP * kF)
+    LindT0temp = -kF / (PI * PI * (LindG(q / tkF, 1._DP, 1._DP) + 3._DP &
+                 * (q / tkF)**2 + 1._DP))
   ENDIF
+
   IF(mu0 .lt. 0) THEN
     LindT0temp = LindT0temp
   ELSE
-    kF = SQRT(2._DP*mu0)
-    tkF = 2._DP*kF
-    eta = q/(2._DP*kF)
-    LindT0temp = LindT0temp + (kF/(PI*PI*(LindG(q/tkF,1._DP,1._DP) + 3._DP*(q/tkF)**2 + 1._DP)))
+    kF = SQRT(2._DP * mu0)
+    tkF = 2._DP * kF
+    eta = q / (2._DP * kF)
+    LindT0temp = LindT0temp + (kF / (PI * PI * (LindG(q / tkF, 1._DP, 1._DP) &
+                 + 3._DP * (q / tkF)**2 + 1._DP)))
   ENDIF
+
   IF(E .lt. 0 .AND. mu0 .lt. 0) THEN
     LindT0mmu = 0._DP
   ELSE
-    LindT0mmu = LindT0temp/(4._DP*temperHa*COSH((E-mu0)/(2._DP*temperHa))**2)
+    LindT0mmu = LindT0temp / (4._DP * temperHa * COSH((E - mu0) / (2._DP * temperHa))**2)
   ENDIF
+  
   IF(LindT0mmu .ne. LindT0mmu) THEN
     LindT0mmu = 0._DP
   ENDIF

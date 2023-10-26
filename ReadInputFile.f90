@@ -999,7 +999,7 @@ SUBROUTINE ReadOptions
             WRITE(message, *) "(input) Non-interacting Free-Energy     : MUP64I"
             !CALL WrtOut(6,message)
 ! <-- VVK END
-! --> TWY ADDED: APR 2021: Temperature dependent non-local non-interacting free-energy functionals
+! --> TWY ADDED: APR 2021: Temperature dependent non-local non-interacting free-energy functional
           CASE("SDF") ! Sjostrom & Daligault non-local functional
             kinetic = 1200
             WRITE(message, *) "(input) Non-interacting Free-Energy     : SDF"
